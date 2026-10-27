@@ -39,6 +39,12 @@ var (
 	usernameRE = regexp.MustCompile(`^[a-zA-Z0-9_]{3,30}$`)
 )
 
+const (
+	loginWindow      = 15 * time.Minute
+	maxLoginFailures = 8
+	loginLock        = 15 * time.Minute
+)
+
 var reservedUsernames = map[string]bool{
 	"admin": true, "administrator": true, "api": true, "root": true,
 	"support": true, "compytition": true, "system": true, "judge": true,
@@ -101,7 +107,7 @@ func (s *Service) Register(ctx context.Context, email, password, username string
 		if err != nil {
 			return nil, err
 		}
-	} else if msg := validateUsername(username); msg != "" {
+	} else if msg := validateChosenUsername(username); msg != "" {
 		fields["username"] = msg
 	}
 	if len(fields) > 0 {
@@ -204,10 +210,14 @@ func (s *Service) Login(ctx context.Context, email, password, ip string) (*Sessi
 }
 
 func (s *Service) recordFailure(ctx context.Context, key string) {
+	attempts := 1
 	rec, err := s.store.GetLoginAttempt(ctx, key)
+	if err == nil && time.Since(rec.FirstAttemptAt) < loginWindow {
+		attempts = int(rec.Attempts) + 1
+	}
 	var lock *time.Time
-	if err == nil && rec.Attempts+1 >= 8 {
-		t := time.Now().Add(15 * time.Minute)
+	if attempts >= maxLoginFailures {
+		t := time.Now().Add(loginLock)
 		lock = &t
 	}
 	if _, err := s.store.RecordLoginFailure(ctx, db.RecordLoginFailureParams{Key: key, LockedUntil: lock}); err != nil {
@@ -248,7 +258,7 @@ func (s *Service) Logout(ctx context.Context, rawToken string) error {
 
 func (s *Service) UsernameAvailable(ctx context.Context, username string) (bool, string) {
 	username = strings.TrimSpace(username)
-	if msg := validateUsername(username); msg != "" {
+	if msg := validateChosenUsername(username); msg != "" {
 		return false, msg
 	}
 	taken, err := s.store.UsernameTaken(ctx, username)
@@ -263,7 +273,7 @@ func (s *Service) UsernameAvailable(ctx context.Context, username string) (bool,
 
 func (s *Service) UpdateUsername(ctx context.Context, userID uuid.UUID, username string) error {
 	username = strings.TrimSpace(username)
-	if msg := validateUsername(username); msg != "" {
+	if msg := validateChosenUsername(username); msg != "" {
 		return &ValidationError{Fields: FieldErrors{"username": msg}}
 	}
 	if err := s.store.UpdateUsername(ctx, db.UpdateUsernameParams{ID: userID, Username: username}); err != nil {
@@ -412,6 +422,18 @@ func validateUsername(username string) string {
 	}
 	if reservedUsernames[strings.ToLower(username)] {
 		return "That username is reserved."
+	}
+	return ""
+}
+
+// validateChosenUsername additionally blocks the auto-generated placeholder
+// pattern, so users cannot select a name that onboarding would later reject.
+func validateChosenUsername(username string) string {
+	if msg := validateUsername(username); msg != "" {
+		return msg
+	}
+	if isPlaceholderUsername(username) {
+		return "Choose a username that is not auto-generated."
 	}
 	return ""
 }

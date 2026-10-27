@@ -1,0 +1,63 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-compytition}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-compytition}
+      POSTGRES_DB: ${POSTGRES_DB:-compytition}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-compytition} -d ${POSTGRES_DB:-compytition}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./apps/api
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      PORT: "8080"
+      DATABASE_URL: postgres://${POSTGRES_USER:-compytition}:${POSTGRES_PASSWORD:-compytition}@db:5432/${POSTGRES_DB:-compytition}?sslmode=disable
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3100}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-720}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      AUTO_MIGRATE: ${AUTO_MIGRATE:-true}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      RATE_LIMIT_PER_MIN: ${RATE_LIMIT_PER_MIN:-240}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URL: ${GOOGLE_REDIRECT_URL:-http://localhost:8080/api/v1/auth/google/callback}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+    ports:
+      - "${API_PORT:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./apps/web
+      args:
+        NEXT_PUBLIC_API_BASE: /api/v1
+        NEXT_PUBLIC_WS_BASE: ${NEXT_PUBLIC_WS_BASE:-ws://localhost:8080}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      API_INTERNAL_URL: http://api:8080
+      NEXT_PUBLIC_API_BASE: /api/v1
+      NEXT_PUBLIC_WS_BASE: ${NEXT_PUBLIC_WS_BASE:-ws://localhost:8080}
+    ports:
+      - "${WEB_PORT:-3100}:3000"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:

@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -27,29 +28,45 @@ type Config struct {
 }
 
 func Load() (*Config, error) {
+	sessionTTLHours, err := envInt("SESSION_TTL_HOURS", 720)
+	if err != nil {
+		return nil, err
+	}
+	rateLimit, err := envInt("RATE_LIMIT_PER_MIN", 240)
+	if err != nil {
+		return nil, err
+	}
+	cookieSecure, err := envBool("COOKIE_SECURE", false)
+	if err != nil {
+		return nil, err
+	}
+	autoMigrate, err := envBool("AUTO_MIGRATE", true)
+	if err != nil {
+		return nil, err
+	}
 	cfg := &Config{
 		Env:             env("APP_ENV", "development"),
 		Port:            env("PORT", "8080"),
 		DatabaseURL:     os.Getenv("DATABASE_URL"),
 		WebOrigin:       strings.TrimRight(env("WEB_ORIGIN", "http://localhost:3000"), "/"),
-		SessionTTL:      time.Duration(envInt("SESSION_TTL_HOURS", 720)) * time.Hour,
-		CookieSecure:    envBool("COOKIE_SECURE", false),
-		AutoMigrate:     envBool("AUTO_MIGRATE", true),
+		SessionTTL:      time.Duration(sessionTTLHours) * time.Hour,
+		CookieSecure:    cookieSecure,
+		AutoMigrate:     autoMigrate,
 		GoogleClientID:  os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleSecret:    os.Getenv("GOOGLE_CLIENT_SECRET"),
 		GoogleRedirect:  env("GOOGLE_REDIRECT_URL", "http://localhost:8080/api/v1/auth/google/callback"),
 		AdminEmails:     parseEmails(os.Getenv("ADMIN_EMAILS")),
 		LogLevel:        env("LOG_LEVEL", "info"),
-		RateLimitPerMin: envInt("RATE_LIMIT_PER_MIN", 240),
+		RateLimitPerMin: rateLimit,
 	}
 
 	if cfg.DatabaseURL == "" {
 		return nil, fmt.Errorf("DATABASE_URL is required")
 	}
-	if cfg.Port == "" {
-		return nil, fmt.Errorf("PORT must not be empty")
+	if port, err := strconv.Atoi(cfg.Port); err != nil || port < 1 || port > 65535 {
+		return nil, fmt.Errorf("PORT must be an integer between 1 and 65535")
 	}
-	if cfg.WebOrigin == "" || !strings.HasPrefix(cfg.WebOrigin, "http") {
+	if cfg.WebOrigin == "" || !validOrigin(cfg.WebOrigin) {
 		return nil, fmt.Errorf("WEB_ORIGIN must be an absolute http(s) URL")
 	}
 	if cfg.SessionTTL < time.Hour {
@@ -80,28 +97,38 @@ func env(key, fallback string) string {
 	return fallback
 }
 
-func envInt(key string, fallback int) int {
+func envInt(key string, fallback int) (int, error) {
 	v := strings.TrimSpace(os.Getenv(key))
 	if v == "" {
-		return fallback
+		return fallback, nil
 	}
 	n, err := strconv.Atoi(v)
 	if err != nil {
-		return fallback
+		return 0, fmt.Errorf("%s must be an integer", key)
 	}
-	return n
+	return n, nil
 }
 
-func envBool(key string, fallback bool) bool {
+func envBool(key string, fallback bool) (bool, error) {
 	v := strings.TrimSpace(os.Getenv(key))
 	if v == "" {
-		return fallback
+		return fallback, nil
 	}
 	b, err := strconv.ParseBool(v)
 	if err != nil {
-		return fallback
+		return false, fmt.Errorf("%s must be true or false", key)
 	}
-	return b
+	return b, nil
+}
+
+func validOrigin(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	return (u.Scheme == "http" || u.Scheme == "https") &&
+		u.Host != "" && (u.Path == "" || u.Path == "/") &&
+		u.RawQuery == "" && u.Fragment == ""
 }
 
 func parseEmails(raw string) map[string]bool {

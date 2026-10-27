@@ -641,7 +641,26 @@ func (s *Service) ReplaceForm(ctx context.Context, userID, eventID uuid.UUID, in
 	return formFieldViews(created), nil
 }
 
-func (s *Service) FormFields(ctx context.Context, eventID uuid.UUID) ([]FormField, error) {
+func (s *Service) FormFields(ctx context.Context, viewerID *uuid.UUID, eventID uuid.UUID) ([]FormField, error) {
+	ev, err := s.store.GetEventByID(ctx, eventID)
+	if err != nil {
+		return nil, apperr.ErrNotFound
+	}
+	if ev.Status == "draft" {
+		if viewerID == nil {
+			return nil, apperr.ErrNotFound
+		}
+		allowed, err := s.store.CanManageEvent(ctx, db.CanManageEventParams{OrganizerID: *viewerID, ID: eventID})
+		if err != nil {
+			return nil, err
+		}
+		if !allowed {
+			judge, _ := s.store.IsJudgeForEvent(ctx, db.IsJudgeForEventParams{EventID: eventID, UserID: viewerID})
+			if !judge {
+				return nil, apperr.ErrNotFound
+			}
+		}
+	}
 	fields, err := s.store.ListFormFields(ctx, eventID)
 	if err != nil {
 		return nil, err

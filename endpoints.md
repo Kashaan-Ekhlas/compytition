@@ -49,7 +49,7 @@ Status legend: ✅ implemented
 | ✅ | DELETE | `/events/{id}` | organizer/staff | draft only |
 | ✅ | GET | `/events/{id}/manage` | organizer/staff | event detail for the manage screen |
 | ✅ | GET | `/host/events` | user | events I own or co-organize |
-| ✅ | GET | `/events/{id}/form` | public | `{ fields }` registration schema |
+| ✅ | GET | `/events/{id}/form` | public (drafts: organizer/staff/judge) | `{ fields }` registration schema; draft events return 404 to everyone else |
 | ✅ | PUT | `/events/{id}/form` | organizer/staff | `{ fields: [...] }` replaces the schema |
 | ✅ | GET | `/events/{id}/staff?role=judge\|co_organizer` | organizer/staff | staff + pending invite accept URL |
 | ✅ | POST | `/events/{id}/staff` | organizer/staff | `{ email, role }` → invite; email-bound |

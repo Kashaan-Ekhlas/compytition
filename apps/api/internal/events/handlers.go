@@ -183,7 +183,11 @@ func (h *Handler) Form(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusNotFound, "Event not found.")
 		return
 	}
-	fields, err := h.svc.FormFields(r.Context(), eventID)
+	var viewerID *uuid.UUID
+	if u, ok := httpx.UserFrom(r.Context()); ok {
+		viewerID = &u.ID
+	}
+	fields, err := h.svc.FormFields(r.Context(), viewerID, eventID)
 	if err != nil {
 		httpx.WriteServiceError(w, h.log, err)
 		return

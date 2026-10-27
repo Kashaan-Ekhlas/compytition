@@ -39,6 +39,20 @@ func RequestIDFrom(ctx context.Context) string {
 	return id
 }
 
+// redactPath removes bearer-like secrets that appear in URL paths, chiefly the
+// staff invite token, before a path is written to the request log.
+func redactPath(path string) string {
+	const staffInvite = "/api/v1/invites/staff/"
+	if !strings.HasPrefix(path, staffInvite) {
+		return path
+	}
+	rest := strings.TrimPrefix(path, staffInvite)
+	if i := strings.IndexByte(rest, '/'); i >= 0 {
+		return staffInvite + "***" + rest[i:]
+	}
+	return staffInvite + "***"
+}
+
 type statusRecorder struct {
 	http.ResponseWriter
 	status int
@@ -99,7 +113,7 @@ func Logging(log *slog.Logger) func(http.Handler) http.Handler {
 				level = slog.LevelWarn
 			}
 			log.Log(r.Context(), level, "request",
-				"method", r.Method, "path", r.URL.Path, "status", rec.status,
+				"method", r.Method, "path", redactPath(r.URL.Path), "status", rec.status,
 				"duration_ms", time.Since(start).Milliseconds(),
 				"request_id", RequestIDFrom(r.Context()), "ip", ClientIP(r),
 			)

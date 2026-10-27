@@ -52,3 +52,16 @@ func TestLoggingExposesResponseController(t *testing.T) {
 
 	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
 }
+
+func TestRedactPathHidesStaffInviteTokens(t *testing.T) {
+	cases := map[string]string{
+		"/api/v1/invites/staff/abcdef123456/accept": "/api/v1/invites/staff/***/accept",
+		"/api/v1/invites/staff/abcdef123456":        "/api/v1/invites/staff/***",
+		"/api/v1/events/1/staff":                    "/api/v1/events/1/staff",
+	}
+	for input, want := range cases {
+		if got := redactPath(input); got != want {
+			t.Errorf("redactPath(%q) = %q, want %q", input, got, want)
+		}
+	}
+}

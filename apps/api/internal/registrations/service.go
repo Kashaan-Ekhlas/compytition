@@ -123,6 +123,15 @@ func (s *Service) Create(ctx context.Context, userID, eventID uuid.UUID, teamID 
 
 	var created db.Registration
 	err = s.store.InTx(ctx, func(q *db.Queries) error {
+		// Serialize with event status changes. The pre-transaction read above
+		// is only for fast validation; this one is authoritative.
+		locked, err := q.LockEventForUpdate(ctx, eventID)
+		if err != nil {
+			return apperr.ErrNotFound
+		}
+		if err := registrationOpenAt(locked.Status, locked.RegistrationOpensAt, locked.RegistrationClosesAt); err != nil {
+			return err
+		}
 		if teamID != nil {
 			if _, err := q.LockTeamForUpdate(ctx, *teamID); err != nil {
 				return apperr.ErrNotFound
@@ -131,7 +140,7 @@ func (s *Service) Create(ctx context.Context, userID, eventID uuid.UUID, teamID 
 			if err != nil {
 				return err
 			}
-			if count < int32(ev.MinTeamSize) {
+			if count < int32(locked.MinTeamSize) {
 				return apperr.Invalid("team_id", "The team no longer meets the minimum size.")
 			}
 		}
@@ -473,14 +482,18 @@ func validateAnswers(fields []db.EventFormField, answers map[string]any) (map[st
 }
 
 func registrationOpen(ev db.GetEventByIDRow) error {
+	return registrationOpenAt(ev.Status, ev.RegistrationOpensAt, ev.RegistrationClosesAt)
+}
+
+func registrationOpenAt(status string, opensAt, closesAt *time.Time) error {
 	now := time.Now()
-	if ev.Status != "published" {
+	if status != "published" {
 		return apperr.Invalid("registration", "Registration is not open for this event.")
 	}
-	if ev.RegistrationOpensAt != nil && ev.RegistrationOpensAt.After(now) {
+	if opensAt != nil && opensAt.After(now) {
 		return apperr.Invalid("registration", "Registration has not opened yet.")
 	}
-	if ev.RegistrationClosesAt != nil && ev.RegistrationClosesAt.Before(now) {
+	if closesAt != nil && closesAt.Before(now) {
 		return apperr.Invalid("registration", "Registration has closed.")
 	}
 	return nil

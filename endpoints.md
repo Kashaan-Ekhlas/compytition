@@ -14,7 +14,8 @@ Status legend: ✅ implemented
 
 | Status | Method | Path | Auth | Notes |
 |---|---|---|---|---|
-| ✅ | GET | `/healthz` | public | `{ status: "ok" }`; 503 when the database is not ready |
+| ✅ | GET | `/healthz` | public | `{ status: "ok" }`; process liveness |
+| ✅ | GET | `/readyz` | public | pings Postgres; 503 when the database is not ready |
 
 ## Auth & Account
 

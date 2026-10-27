@@ -79,7 +79,7 @@ Key tables and invariants:
 - `events` — slug unique, organizer, lifecycle status, judging status, JSONB `criteria` (array of `{name,description}`), JSONB `judging_config` (`{target_comparisons,judge_budget,anchor_count}`), generated `search_vector` + GIN index.
 - `event_form_fields` — schema-driven registration fields; type CHECK; options JSONB; ordered.
 - `event_staff` — `(event_id,email,role)` unique; `invite_token` unique; accepted rows carry `user_id`.
-- `teams` — `(event_id,name)` unique; owner. `team_members` PK `(team_id,user_id)`; service enforces one team per user per event and max size under `SELECT … FOR UPDATE`.
+- `teams` — `(event_id,name)` unique; owner. `team_members` stores `event_id` and enforces unique `(event_id,user_id)`, so the database itself prevents a user joining two teams in one event; max size is checked under `SELECT … FOR UPDATE`.
 - `team_invites` / `team_join_requests` — `(team_id,user)` unique; pending → accepted/rejected/cancelled.
 - `registrations` — `(event_id,user_id)` unique; `team_id` links team entry; answers JSONB.
 - `submissions` — one per registration; partial unique `(event_id,team_id) WHERE team_id IS NOT NULL`.
@@ -211,6 +211,7 @@ Demo accounts: `host@compytition.local` (organizer), `ava@`, `milo@`, `rin@compy
 
 Newest first.
 
+- **2026-10-27** — Enforced one team per user per event in the database. `team_members` now carries `event_id` with a unique `(event_id,user_id)` index (migration `000002`), closing a race between concurrent creates/joins that the service-layer check could miss.
 - **2026-10-27** — Fixed WebSocket upgrades through the logging middleware: the response wrapper now preserves `http.Hijacker` and `http.Flusher` (plus `Unwrap`), with unit coverage. Before this, team chat upgrades failed with “response does not implement http.Hijacker”.
 - **2026-10-27** — Fixed the Compose web build: `API_INTERNAL_URL` is now a build arg because Next bakes rewrite destinations into the standalone build. The image previously proxied `/api/v1` to `localhost:8080` inside the web container and returned 500s.
 - **2026-10-27** — Completed the Next.js app: landing, discovery, event detail with bookmarks, registration, team management + websocket chat, submission editor, dashboard, settings, organizer home and the tabbed manage console (overview/form/participants/submissions/judges/judging), judge queue and pairwise comparison screen, staff invite acceptance. Added Vitest coverage for the API client and formatters, fixed Next config loading under TypeScript 5.9, and pinned the toolchain.

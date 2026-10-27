@@ -346,63 +346,72 @@ func (s *Service) Update(ctx context.Context, userID, eventID uuid.UUID, in Even
 	return &v, nil
 }
 
+// SetStatus changes the event lifecycle. The event row is locked for the whole
+// transition so a registration cannot slip in between the unpublish check and
+// the status update.
 func (s *Service) SetStatus(ctx context.Context, userID, eventID uuid.UUID, target string) error {
-	ev, err := s.store.GetEventByID(ctx, eventID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return apperr.ErrNotFound
+	return s.store.InTx(ctx, func(q *db.Queries) error {
+		ev, err := q.LockEventForUpdate(ctx, eventID)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return apperr.ErrNotFound
+			}
+			return err
 		}
-		return err
-	}
-	if err := s.requireManage(ctx, userID, eventID); err != nil {
-		return err
-	}
-	switch target {
-	case "published":
-		if ev.Status != "draft" {
-			return apperr.ErrConflict
-		}
-		fields := map[string]string{}
-		if ev.StartsAt == nil {
-			fields["starts_at"] = "Set a start date before publishing."
-		}
-		if ev.RegistrationClosesAt == nil {
-			fields["registration_closes_at"] = "Set a registration deadline before publishing."
-		}
-		if ev.RegistrationClosesAt != nil && ev.RegistrationClosesAt.Before(time.Now()) {
-			fields["registration_closes_at"] = "The registration deadline is already in the past."
-		}
-		if ev.SubmissionDeadline == nil {
-			fields["submission_deadline"] = "Set a submission deadline before publishing."
-		}
-		if len(fields) > 0 {
-			return apperr.InvalidFields(fields)
-		}
-	case "draft":
-		if ev.Status != "published" {
-			return apperr.ErrConflict
-		}
-		count, err := s.store.CountEventRegistrations(ctx, eventID)
+		allowed, err := q.CanManageEvent(ctx, db.CanManageEventParams{OrganizerID: userID, ID: eventID})
 		if err != nil {
 			return err
 		}
-		if count > 0 {
-			return apperr.Invalid("status", "You cannot unpublish after participants register.")
+		if !allowed {
+			return apperr.ErrNotFound
 		}
-	case "closed":
-		if ev.Status != "published" {
-			return apperr.ErrConflict
+		switch target {
+		case "published":
+			if ev.Status != "draft" {
+				return apperr.ErrConflict
+			}
+			fields := map[string]string{}
+			if ev.StartsAt == nil {
+				fields["starts_at"] = "Set a start date before publishing."
+			}
+			if ev.RegistrationClosesAt == nil {
+				fields["registration_closes_at"] = "Set a registration deadline before publishing."
+			}
+			if ev.RegistrationClosesAt != nil && ev.RegistrationClosesAt.Before(time.Now()) {
+				fields["registration_closes_at"] = "The registration deadline is already in the past."
+			}
+			if ev.SubmissionDeadline == nil {
+				fields["submission_deadline"] = "Set a submission deadline before publishing."
+			}
+			if len(fields) > 0 {
+				return apperr.InvalidFields(fields)
+			}
+		case "draft":
+			if ev.Status != "published" {
+				return apperr.ErrConflict
+			}
+			count, err := q.CountEventRegistrations(ctx, eventID)
+			if err != nil {
+				return err
+			}
+			if count > 0 {
+				return apperr.Invalid("status", "You cannot unpublish after participants register.")
+			}
+		case "closed":
+			if ev.Status != "published" {
+				return apperr.ErrConflict
+			}
+		default:
+			return apperr.Invalid("status", "Unsupported status transition.")
 		}
-	default:
-		return apperr.Invalid("status", "Unsupported status transition.")
-	}
-	if err := s.store.UpdateEventStatus(ctx, db.UpdateEventStatusParams{ID: eventID, Status: target}); err != nil {
-		return err
-	}
-	_ = s.store.CreateAuditEntry(ctx, db.CreateAuditEntryParams{
-		ActorID: &userID, EventID: &eventID, Action: "event.status." + target, Metadata: []byte(`{}`),
+		if err := q.UpdateEventStatus(ctx, db.UpdateEventStatusParams{ID: eventID, Status: target}); err != nil {
+			return err
+		}
+		_ = q.CreateAuditEntry(ctx, db.CreateAuditEntryParams{
+			ActorID: &userID, EventID: &eventID, Action: "event.status." + target, Metadata: []byte(`{}`),
+		})
+		return nil
 	})
-	return nil
 }
 
 func (s *Service) Delete(ctx context.Context, userID, eventID uuid.UUID) error {
@@ -688,6 +697,9 @@ func (s *Service) InviteStaff(ctx context.Context, userID, eventID uuid.UUID, em
 	if ev.Status == "results_published" {
 		return nil, apperr.ErrConflict
 	}
+	if role == "judge" && ev.JudgingStatus != "setup" {
+		return nil, apperr.Invalid("judging", "Judging has already started; judges cannot be added now.")
+	}
 	var invitedUserID *uuid.UUID
 	if u, err := s.store.GetUserByEmail(ctx, email); err == nil {
 		if u.ID == userID {
@@ -763,6 +775,13 @@ func (s *Service) AcceptStaffInvite(ctx context.Context, userID uuid.UUID, token
 	if !strings.EqualFold(user.Email, staff.Email) {
 		return nil, "", apperr.ErrForbidden
 	}
+	ev, err := s.store.GetEventByID(ctx, staff.EventID)
+	if err != nil {
+		return nil, "", apperr.ErrNotFound
+	}
+	if ev.Status == "results_published" || (staff.Role == "judge" && ev.JudgingStatus != "setup") {
+		return nil, "", apperr.ErrConflict
+	}
 	if err := s.store.AcceptStaffInvite(ctx, db.AcceptStaffInviteParams{ID: staff.ID, UserID: &userID}); err != nil {
 		return nil, "", err
 	}
@@ -783,26 +802,17 @@ func (s *Service) RemoveStaff(ctx context.Context, userID, eventID, staffID uuid
 	if err != nil {
 		return apperr.ErrNotFound
 	}
+	staff, err := s.store.GetStaffByID(ctx, db.GetStaffByIDParams{ID: staffID, EventID: eventID})
+	if err != nil {
+		return apperr.ErrNotFound
+	}
+	if staff.Role == "judge" && ev.JudgingStatus != "setup" {
+		return apperr.Invalid("judging", "Judging has already started; judges cannot be removed now.")
+	}
 	if ev.JudgingStatus == "locked" || ev.JudgingStatus == "published" {
 		return apperr.ErrConflict
 	}
-	staff, err := s.store.ListEventStaff(ctx, db.ListEventStaffParams{EventID: eventID, Role: "judge"})
-	if err == nil {
-		for _, st := range staff {
-			if st.ID == staffID {
-				return s.store.RemoveStaff(ctx, staffID)
-			}
-		}
-	}
-	staff, err = s.store.ListEventStaff(ctx, db.ListEventStaffParams{EventID: eventID, Role: "co_organizer"})
-	if err == nil {
-		for _, st := range staff {
-			if st.ID == staffID {
-				return s.store.RemoveStaff(ctx, staffID)
-			}
-		}
-	}
-	return apperr.ErrNotFound
+	return s.store.RemoveStaff(ctx, staffID)
 }
 
 // ── Judging config ─────────────────────────────────────────────────────────

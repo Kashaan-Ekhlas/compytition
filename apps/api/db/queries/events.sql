@@ -31,7 +31,11 @@ SELECT id, slug, organizer_id, title, description, category,
 FROM events WHERE slug = $1;
 
 -- name: LockEventForUpdate :one
-SELECT id, organizer_id, status, judging_status
+SELECT id, slug, organizer_id, title, description, category,
+    participation_format, status, eligibility, rules, contact_email, location,
+    min_team_size, max_team_size, registration_opens_at, registration_closes_at,
+    starts_at, ends_at, submission_deadline, criteria, judging_config,
+    judging_status, judging_locked_at, results_published_at, created_at, updated_at
 FROM events WHERE id = $1 FOR UPDATE;
 
 -- name: UpdateEvent :one
@@ -95,14 +99,23 @@ ORDER BY COALESCE(e.starts_at, e.created_at) ASC, e.created_at DESC
 LIMIT sqlc.arg('lim') OFFSET sqlc.arg('off');
 
 -- name: ListEventsByOrganizer :many
-SELECT id, slug, organizer_id, title, description, category,
-    participation_format, status, eligibility, rules, contact_email, location,
-    min_team_size, max_team_size, registration_opens_at, registration_closes_at,
-    starts_at, ends_at, submission_deadline, criteria, judging_config,
-    judging_status, judging_locked_at, results_published_at, created_at, updated_at
-FROM events
-WHERE organizer_id = $1
-ORDER BY created_at DESC;
+-- Hosting includes events the user owns and events they co-organize. Without
+-- the second branch a co-organizer can manage an event by direct link but never
+-- finds it on their dashboard.
+SELECT e.id, e.slug, e.organizer_id, e.title, e.description, e.category,
+    e.participation_format, e.status, e.eligibility, e.rules, e.contact_email,
+    e.location, e.min_team_size, e.max_team_size, e.registration_opens_at,
+    e.registration_closes_at, e.starts_at, e.ends_at, e.submission_deadline,
+    e.criteria, e.judging_config, e.judging_status, e.judging_locked_at,
+    e.results_published_at, e.created_at, e.updated_at
+FROM events e
+WHERE e.organizer_id = $1
+   OR EXISTS (
+       SELECT 1 FROM event_staff s
+       WHERE s.event_id = e.id AND s.user_id = $1
+         AND s.role = 'co_organizer' AND s.status = 'accepted'
+   )
+ORDER BY e.created_at DESC;
 
 -- name: CanManageEvent :one
 SELECT EXISTS (
@@ -151,6 +164,9 @@ SELECT * FROM event_staff WHERE invite_token = $1;
 
 -- name: GetStaffMember :one
 SELECT * FROM event_staff WHERE event_id = $1 AND user_id = $2 AND role = $3;
+
+-- name: GetStaffByID :one
+SELECT * FROM event_staff WHERE id = $1 AND event_id = $2;
 
 -- name: ListEventStaff :many
 SELECT * FROM event_staff

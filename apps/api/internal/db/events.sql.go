@@ -444,6 +444,33 @@ func (q *Queries) GetEventBySlug(ctx context.Context, slug string) (GetEventBySl
 	return i, err
 }
 
+const getStaffByID = `-- name: GetStaffByID :one
+SELECT id, event_id, user_id, email, role, status, invite_token, invited_by, created_at, updated_at FROM event_staff WHERE id = $1 AND event_id = $2
+`
+
+type GetStaffByIDParams struct {
+	ID      uuid.UUID `json:"id"`
+	EventID uuid.UUID `json:"event_id"`
+}
+
+func (q *Queries) GetStaffByID(ctx context.Context, arg GetStaffByIDParams) (EventStaff, error) {
+	row := q.db.QueryRow(ctx, getStaffByID, arg.ID, arg.EventID)
+	var i EventStaff
+	err := row.Scan(
+		&i.ID,
+		&i.EventID,
+		&i.UserID,
+		&i.Email,
+		&i.Role,
+		&i.Status,
+		&i.InviteToken,
+		&i.InvitedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getStaffByToken = `-- name: GetStaffByToken :one
 SELECT id, event_id, user_id, email, role, status, invite_token, invited_by, created_at, updated_at FROM event_staff WHERE invite_token = $1
 `
@@ -572,14 +599,20 @@ func (q *Queries) ListEventStaff(ctx context.Context, arg ListEventStaffParams) 
 }
 
 const listEventsByOrganizer = `-- name: ListEventsByOrganizer :many
-SELECT id, slug, organizer_id, title, description, category,
-    participation_format, status, eligibility, rules, contact_email, location,
-    min_team_size, max_team_size, registration_opens_at, registration_closes_at,
-    starts_at, ends_at, submission_deadline, criteria, judging_config,
-    judging_status, judging_locked_at, results_published_at, created_at, updated_at
-FROM events
-WHERE organizer_id = $1
-ORDER BY created_at DESC
+SELECT e.id, e.slug, e.organizer_id, e.title, e.description, e.category,
+    e.participation_format, e.status, e.eligibility, e.rules, e.contact_email,
+    e.location, e.min_team_size, e.max_team_size, e.registration_opens_at,
+    e.registration_closes_at, e.starts_at, e.ends_at, e.submission_deadline,
+    e.criteria, e.judging_config, e.judging_status, e.judging_locked_at,
+    e.results_published_at, e.created_at, e.updated_at
+FROM events e
+WHERE e.organizer_id = $1
+   OR EXISTS (
+       SELECT 1 FROM event_staff s
+       WHERE s.event_id = e.id AND s.user_id = $1
+         AND s.role = 'co_organizer' AND s.status = 'accepted'
+   )
+ORDER BY e.created_at DESC
 `
 
 type ListEventsByOrganizerRow struct {
@@ -611,6 +644,9 @@ type ListEventsByOrganizerRow struct {
 	UpdatedAt            time.Time  `json:"updated_at"`
 }
 
+// Hosting includes events the user owns and events they co-organize. Without
+// the second branch a co-organizer can manage an event by direct link but never
+// finds it on their dashboard.
 func (q *Queries) ListEventsByOrganizer(ctx context.Context, organizerID uuid.UUID) ([]ListEventsByOrganizerRow, error) {
 	rows, err := q.db.Query(ctx, listEventsByOrganizer, organizerID)
 	if err != nil {
@@ -906,15 +942,41 @@ func (q *Queries) ListPublishedEvents(ctx context.Context, arg ListPublishedEven
 }
 
 const lockEventForUpdate = `-- name: LockEventForUpdate :one
-SELECT id, organizer_id, status, judging_status
+SELECT id, slug, organizer_id, title, description, category,
+    participation_format, status, eligibility, rules, contact_email, location,
+    min_team_size, max_team_size, registration_opens_at, registration_closes_at,
+    starts_at, ends_at, submission_deadline, criteria, judging_config,
+    judging_status, judging_locked_at, results_published_at, created_at, updated_at
 FROM events WHERE id = $1 FOR UPDATE
 `
 
 type LockEventForUpdateRow struct {
-	ID            uuid.UUID `json:"id"`
-	OrganizerID   uuid.UUID `json:"organizer_id"`
-	Status        string    `json:"status"`
-	JudgingStatus string    `json:"judging_status"`
+	ID                   uuid.UUID  `json:"id"`
+	Slug                 string     `json:"slug"`
+	OrganizerID          uuid.UUID  `json:"organizer_id"`
+	Title                string     `json:"title"`
+	Description          string     `json:"description"`
+	Category             string     `json:"category"`
+	ParticipationFormat  string     `json:"participation_format"`
+	Status               string     `json:"status"`
+	Eligibility          string     `json:"eligibility"`
+	Rules                string     `json:"rules"`
+	ContactEmail         string     `json:"contact_email"`
+	Location             string     `json:"location"`
+	MinTeamSize          int16      `json:"min_team_size"`
+	MaxTeamSize          int16      `json:"max_team_size"`
+	RegistrationOpensAt  *time.Time `json:"registration_opens_at"`
+	RegistrationClosesAt *time.Time `json:"registration_closes_at"`
+	StartsAt             *time.Time `json:"starts_at"`
+	EndsAt               *time.Time `json:"ends_at"`
+	SubmissionDeadline   *time.Time `json:"submission_deadline"`
+	Criteria             []byte     `json:"criteria"`
+	JudgingConfig        []byte     `json:"judging_config"`
+	JudgingStatus        string     `json:"judging_status"`
+	JudgingLockedAt      *time.Time `json:"judging_locked_at"`
+	ResultsPublishedAt   *time.Time `json:"results_published_at"`
+	CreatedAt            time.Time  `json:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at"`
 }
 
 func (q *Queries) LockEventForUpdate(ctx context.Context, id uuid.UUID) (LockEventForUpdateRow, error) {
@@ -922,9 +984,31 @@ func (q *Queries) LockEventForUpdate(ctx context.Context, id uuid.UUID) (LockEve
 	var i LockEventForUpdateRow
 	err := row.Scan(
 		&i.ID,
+		&i.Slug,
 		&i.OrganizerID,
+		&i.Title,
+		&i.Description,
+		&i.Category,
+		&i.ParticipationFormat,
 		&i.Status,
+		&i.Eligibility,
+		&i.Rules,
+		&i.ContactEmail,
+		&i.Location,
+		&i.MinTeamSize,
+		&i.MaxTeamSize,
+		&i.RegistrationOpensAt,
+		&i.RegistrationClosesAt,
+		&i.StartsAt,
+		&i.EndsAt,
+		&i.SubmissionDeadline,
+		&i.Criteria,
+		&i.JudgingConfig,
 		&i.JudgingStatus,
+		&i.JudgingLockedAt,
+		&i.ResultsPublishedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }

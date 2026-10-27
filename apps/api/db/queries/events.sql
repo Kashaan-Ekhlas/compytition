@@ -54,7 +54,7 @@ UPDATE events SET status = $2, updated_at = now() WHERE id = $1;
 -- name: UpdateEventJudgingStatus :exec
 UPDATE events
 SET judging_status = $2,
-    judging_locked_at = CASE WHEN $2 = 'locked' THEN now() ELSE judging_locked_at END,
+    judging_locked_at = CASE WHEN $2 IN ('locked', 'published') THEN now() ELSE judging_locked_at END,
     results_published_at = CASE WHEN $2 = 'published' THEN now() ELSE results_published_at END,
     updated_at = now()
 WHERE id = $1;

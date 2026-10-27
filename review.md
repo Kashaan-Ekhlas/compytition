@@ -162,13 +162,28 @@ npm run build
 Go: all packages build/vet clean; tests pass (including new config, judging, and middleware tests).  
 Web: TypeScript clean, 22 Vitest tests pass, production build succeeds.
 
+### Runtime smoke test (Docker Compose + Postgres)
+
+The API and web images were rebuilt and exercised against the seeded database through the real HTTP API:
+
+- Team submission hand-off: Alice (owner and submission creator) left a two-person team; the submission was reassigned to Bob with his registration, and Bob became owner. The roster stayed hidden from anonymous visitors and non-members while remaining visible to members, and a pending invitee saw only their invite flag.
+- Roster/pending privacy held for a member of the public and for an invitee who was not yet a member.
+- Event lifecycle: publish succeeded; unpublish returned `422` once a registration existed; draft deletion still returned `204`; a draft bookmark returned `404` while a published bookmark returned `201`.
+- Co-organizer visibility: an accepted co-organizer saw the event in `GET /host/events`.
+- Staff guards: judge invite and removal returned `422` once judging was live, and a pending judge invite could not be accepted (`409`).
+- Judging review: two judges voted opposite ways on the same canonical pair and the review reported exactly one split decision; accepted judges with no judgments appeared at Beta(3,1) with `comparisons: 0`.
+- Conflict undo: a conflict skipped two pairs; undo returned the pair to pending, restored the other skipped pair, and left zero skipped pairs.
+- Request logs contained 8 redacted staff-invite paths and no raw tokens.
+
+Smoke-test events and accounts were removed from the database afterwards; the seed event is unchanged.
+
 ## Remaining Risks / Not Changed
 
 These are real but were outside this review's fix scope or need a product decision:
 
-1. **No DB-backed integration tests.** Domain services and HTTP handlers still have no integration suite. The new behaviours (submission hand-off on leave, conflict undo, event status locking) were reasoned and compiled but not exercised against Postgres in tests. Recommended next step: a small `testcontainers`/Compose-backed suite covering the judging and team flows.
+1. **No DB-backed integration tests.** Domain services and HTTP handlers still have no automated integration suite. The new behaviours (submission hand-off on leave, conflict undo, event status locking) were exercised in the manual Compose smoke test above but are not guarded by CI. Recommended next step: a small `testcontainers`/Compose-backed suite covering the judging and team flows.
 2. **In-process rate limiter and chat hub.** Both are single-instance only. Horizontal scaling needs Redis/pub-sub or a shared limiter.
 3. **Session touch on every request.** `TouchSession` writes per authenticated request; debounce (e.g. once per five minutes) if write load becomes a problem.
 4. **No submission withdrawal endpoint.** Leaving a team no longer destroys a submission, but there is still no explicit “withdraw submission” route; participants can edit to draft status but cannot delete.
 5. **CSP.** The web app deliberately omits a strict CSP because of the inline theme bootstrap script; the API sends a restrictive CSP for its JSON responses.
-6. **Dead `review.md` assumptions.** `disagreements[].pair_id` is now a representative ID, not an identifier shared by all judges. The UI only uses it as a React key, but future API consumers should use `title_a`/`title_b` or winner counts.
+6. **Split-decision pair ID.** `disagreements[].pair_id` is now a representative ID, not an identifier shared by all judges. The UI only uses it as a React key, but future API consumers should use `title_a`/`title_b` or winner counts.

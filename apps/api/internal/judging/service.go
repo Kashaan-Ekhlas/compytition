@@ -174,11 +174,10 @@ func (s *Service) Preview(ctx context.Context, userID, eventID uuid.UUID) (*Prev
 	if err != nil {
 		return nil, err
 	}
-	cfg, criteria, err := s.config(ev)
+	cfg, _, err := s.config(ev)
 	if err != nil {
 		return nil, err
 	}
-	_ = criteria
 
 	plan, err := s.buildPlan(ctx, eventID, ev, subs, judges, cfg)
 	if err != nil {
@@ -961,5 +960,3 @@ func deref(s *string) string {
 	}
 	return *s
 }
-
-var _ = pgx.ErrNoRows

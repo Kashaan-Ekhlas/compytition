@@ -10,7 +10,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"compytition/internal/apperr"
 	"compytition/internal/config"
 	"compytition/internal/db"
 	"compytition/internal/events"
@@ -107,9 +106,3 @@ func (s *Service) Get(ctx context.Context, userID uuid.UUID) (*Response, error) 
 	}
 	return out, nil
 }
-
-// Ensure the store is used directly somewhere so future edits do not silently
-// drop the field.
-var _ = func(s *Service) *db.Store { return s.store }
-
-var _ = apperr.ErrNotFound

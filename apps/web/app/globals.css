@@ -1,0 +1,143 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #f4efe3;
+  --surface: #ffffff;
+  --ink: #14110f;
+  --muted: #5b5650;
+  --accent: #ffd83d;
+  --accent-2: #d9414e;
+  --accent-3: #c7ccf2;
+  --success: #2f8f5b;
+  --focus: #3b2bff;
+  --halftone: rgba(20, 17, 15, 0.09);
+}
+
+[data-theme="arcade"] {
+  --bg: #120b2e;
+  --surface: #1c1342;
+  --ink: #f6f1ff;
+  --muted: #b7aedd;
+  --accent: #ff4fd8;
+  --accent-2: #2ee6d6;
+  --accent-3: #7a3ff2;
+  --success: #48d597;
+  --focus: #ffd83d;
+  --halftone: rgba(246, 241, 255, 0.12);
+}
+
+* {
+  border-color: var(--ink);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--ink);
+  font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  font-size: 18px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+a {
+  text-underline-offset: 3px;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+.font-pixel {
+  letter-spacing: 0.02em;
+  line-height: 1.35;
+}
+
+/* Halftone is decorative only; never place it behind body copy. */
+.halftone {
+  background-image: radial-gradient(var(--halftone) 1.1px, transparent 1.1px);
+  background-size: 8px 8px;
+}
+
+.pixel-divider {
+  height: 4px;
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--ink) 0 12px,
+    transparent 12px 20px
+  );
+}
+
+.sticker {
+  display: inline-block;
+  background: var(--accent);
+  color: var(--ink);
+  border: 3px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--ink);
+  padding: 0.15em 0.5em;
+}
+
+.chunky-link {
+  text-decoration-line: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.pixel-corners {
+  clip-path: polygon(
+    0 8px,
+    8px 8px,
+    8px 0,
+    calc(100% - 8px) 0,
+    calc(100% - 8px) 8px,
+    100% 8px,
+    100% calc(100% - 8px),
+    calc(100% - 8px) calc(100% - 8px),
+    calc(100% - 8px) 100%,
+    8px 100%,
+    8px calc(100% - 8px),
+    0 calc(100% - 8px)
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Native select styled to match inputs. */
+select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink) 50%),
+    linear-gradient(135deg, var(--ink) 50%, transparent 50%);
+  background-position:
+    calc(100% - 22px) calc(50% + 2px),
+    calc(100% - 16px) calc(50% + 2px);
+  background-size:
+    6px 6px,
+    6px 6px;
+  background-repeat: no-repeat;
+}

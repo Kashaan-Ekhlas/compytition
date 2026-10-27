@@ -6,6 +6,7 @@ import {
   fromDateTimeInput,
   initials,
   relativeTime,
+  safeNext,
   statusLabel,
   toDateTimeInput,
 } from "./utils";
@@ -87,5 +88,26 @@ describe("initials", () => {
     expect(initials("Ada Lovelace")).toBe("AL");
     expect(initials("grace")).toBe("G");
     expect(initials("  ")).toBe("");
+  });
+});
+
+describe("safeNext", () => {
+  it("keeps same-origin paths", () => {
+    expect(safeNext("/events/123")).toBe("/events/123");
+    expect(safeNext("/dashboard?tab=hosting")).toBe("/dashboard?tab=hosting");
+  });
+
+  it("falls back for empty values", () => {
+    expect(safeNext(null)).toBe("/dashboard");
+    expect(safeNext("")).toBe("/dashboard");
+    expect(safeNext(undefined, "/events")).toBe("/events");
+  });
+
+  it("rejects open-redirect payloads", () => {
+    expect(safeNext("//evil.example")).toBe("/dashboard");
+    expect(safeNext("https://evil.example")).toBe("/dashboard");
+    expect(safeNext("/\\evil.example")).toBe("/dashboard");
+    expect(safeNext("/\tevil")).toBe("/dashboard");
+    expect(safeNext("javascript:alert(1)")).toBe("/dashboard");
   });
 });

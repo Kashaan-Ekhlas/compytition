@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, errorMessage, fieldErrors } from "@/lib/api";
+import { safeNext } from "@/lib/utils";
 import { useAuth, useRequireAuth } from "@/components/auth-provider";
 import { Alert, LoadingBlock, Progress } from "@/components/ui/feedback";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ const intents = [
 ];
 
 const TOTAL_STEPS = 6;
+const PLACEHOLDER_USERNAME = /^user_[a-f0-9]{6}$/;
 
 export default function OnboardingPage() {
   const { user, profile, loading, refresh } = useAuth();
@@ -44,11 +46,11 @@ export default function OnboardingPage() {
       setYear(profile.year_of_study ? String(profile.year_of_study) : "");
     }
     if (user.onboarding_completed) {
-      const next = new URLSearchParams(window.location.search).get("next");
-      router.replace(next && next.startsWith("/") ? next : "/dashboard");
+      const next = safeNext(new URLSearchParams(window.location.search).get("next"), "");
+      router.replace(next || "/dashboard");
       return;
     }
-    const placeholder = user.username.startsWith("user_");
+    const placeholder = PLACEHOLDER_USERNAME.test(user.username);
     const resume = placeholder ? 1 : Math.min(Math.max(user.onboarding_step, 1), TOTAL_STEPS);
     setStep((current) => (current === 1 ? resume : current));
   }, [user, profile, router]);
@@ -56,7 +58,11 @@ export default function OnboardingPage() {
   const canContinue = useMemo(() => {
     switch (step) {
       case 1:
-        return /^[a-zA-Z0-9_]{3,30}$/.test(username) && usernameState !== "taken";
+        return (
+          /^[a-zA-Z0-9_]{3,30}$/.test(username) &&
+          !PLACEHOLDER_USERNAME.test(username) &&
+          usernameState !== "taken"
+        );
       case 2:
         return fullName.trim().length >= 2;
       case 3:
@@ -125,8 +131,8 @@ export default function OnboardingPage() {
           body: { step: 6, completed: true, intents: selected },
         });
         await refresh();
-        const next = new URLSearchParams(window.location.search).get("next");
-        router.push(next && next.startsWith("/") ? next : "/dashboard");
+        const next = safeNext(new URLSearchParams(window.location.search).get("next"), "");
+        router.push(next || "/dashboard");
       }
     } catch (err) {
       setError(errorMessage(err));

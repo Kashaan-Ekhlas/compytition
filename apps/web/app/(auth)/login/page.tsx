@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api, errorMessage } from "@/lib/api";
+import { safeNext } from "@/lib/utils";
 import { useAuth } from "@/components/auth-provider";
 import { Alert } from "@/components/ui/feedback";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -26,11 +27,11 @@ function LoginForm() {
     try {
       await api("/auth/login", { method: "POST", body: { email, password } });
       const me = await refresh();
-      const next = params.get("next");
+      const next = safeNext(params.get("next"), "");
       if (me.user && !me.user.onboarding_completed) {
-        router.push("/onboarding");
+        router.push(next ? `/onboarding?next=${encodeURIComponent(next)}` : "/onboarding");
       } else {
-        router.push(next && next.startsWith("/") ? next : "/dashboard");
+        router.push(next || "/dashboard");
       }
     } catch (err) {
       setError(errorMessage(err));

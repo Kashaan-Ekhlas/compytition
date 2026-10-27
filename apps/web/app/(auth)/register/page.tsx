@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, errorMessage, fieldErrors } from "@/lib/api";
+import { safeNext } from "@/lib/utils";
 import { useAuth } from "@/components/auth-provider";
 import { Alert } from "@/components/ui/feedback";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -32,10 +33,8 @@ export default function RegisterPage() {
     try {
       await api("/auth/register", { method: "POST", body: { email, password } });
       await refresh();
-      const next = new URLSearchParams(window.location.search).get("next");
-      router.push(
-        next && next.startsWith("/") ? `/onboarding?next=${encodeURIComponent(next)}` : "/onboarding",
-      );
+      const next = safeNext(new URLSearchParams(window.location.search).get("next"), "");
+      router.push(next ? `/onboarding?next=${encodeURIComponent(next)}` : "/onboarding");
     } catch (err) {
       setError(errorMessage(err));
       setFields(fieldErrors(err));

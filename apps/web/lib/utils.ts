@@ -72,3 +72,16 @@ export function initials(name: string): string {
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("");
 }
+
+/**
+ * Returns a safe same-origin path for ?next= redirects. Rejects protocol
+ * relative URLs (`//evil`), backslash tricks (`/\evil`), absolute URLs and
+ * control characters so auth flows cannot be used as an open redirect.
+ */
+export function safeNext(value: string | null | undefined, fallback = "/dashboard"): string {
+  if (!value) return fallback;
+  const next = value.trim();
+  if (!next.startsWith("/") || next.startsWith("//") || next.includes("\\")) return fallback;
+  if (/[\u0000-\u001f\u007f]/.test(next)) return fallback;
+  return next;
+}

@@ -168,6 +168,17 @@ WHERE event_id = $1 AND judge_id = $2 AND status = 'pending'
 -- name: ClearCurrentJudgment :exec
 UPDATE judgments SET is_current = FALSE WHERE pair_id = $1 AND is_current = TRUE;
 
+-- name: RestoreSkippedPairsForJudge :exec
+-- Undoing a conflict call should put back the pending pairs that the conflict
+-- skipped. Pairs that already carry a current judgment are left alone.
+UPDATE judging_pairs p SET status = 'pending'
+WHERE p.event_id = $1 AND p.judge_id = $2 AND p.status = 'skipped'
+  AND (p.submission_a = sqlc.arg('submission_a') OR p.submission_b = sqlc.arg('submission_a')
+       OR p.submission_a = sqlc.arg('submission_b') OR p.submission_b = sqlc.arg('submission_b'))
+  AND NOT EXISTS (
+      SELECT 1 FROM judgments j WHERE j.pair_id = p.id AND j.is_current = TRUE
+  );
+
 -- name: ResetPairStatus :exec
 UPDATE judging_pairs SET status = $2 WHERE id = $1;
 

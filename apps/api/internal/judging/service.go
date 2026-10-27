@@ -460,10 +460,25 @@ func (s *Service) Undo(ctx context.Context, userID, eventID, pairID uuid.UUID) e
 		return apperr.Invalid("judging", "Judging is not live for this event.")
 	}
 	return s.store.InTx(ctx, func(q *db.Queries) error {
+		judgment, err := q.GetCurrentJudgmentForPair(ctx, pair.ID)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
 		if err := q.ClearCurrentJudgment(ctx, pair.ID); err != nil {
 			return err
 		}
-		return q.ResetPairStatus(ctx, db.ResetPairStatusParams{ID: pair.ID, Status: "pending"})
+		if err := q.ResetPairStatus(ctx, db.ResetPairStatusParams{ID: pair.ID, Status: "pending"}); err != nil {
+			return err
+		}
+		// Undoing a conflict call must bring back the pairs that conflict
+		// skipped, otherwise they stay hidden from the judge forever.
+		if err == nil && judgment.Conflict {
+			return q.RestoreSkippedPairsForJudge(ctx, db.RestoreSkippedPairsForJudgeParams{
+				EventID: eventID, JudgeID: userID,
+				SubmissionA: pair.SubmissionA, SubmissionB: pair.SubmissionB,
+			})
+		}
+		return nil
 	})
 }
 
@@ -828,26 +843,54 @@ func rankEntries(model *crowdbt.Result, subs []Submission, outcomes []db.ListPai
 }
 
 func reliability(model *crowdbt.Result, progress []db.ListJudgeProgressRow) []JudgeReliability {
-	byID := map[uuid.UUID]db.ListJudgeProgressRow{}
-	for _, p := range progress {
-		if p.UserID != nil {
-			byID[*p.UserID] = p
-		}
-	}
-	out := make([]JudgeReliability, 0, len(model.Judges))
+	known := map[uuid.UUID]crowdbt.JudgeResult{}
 	for _, j := range model.Judges {
-		entry := JudgeReliability{
-			ID: j.ID, Reliability: j.Reliability, Alpha: j.Alpha, Beta: j.Beta,
-			Comparisons: j.Comparisons,
-		}
-		if row, ok := byID[j.ID]; ok {
-			entry.Username = deref(row.Username)
-			entry.Email = row.Email
-			entry.Total = row.Total
-			entry.Done = row.Done
-		}
-		out = append(out, entry)
+		known[j.ID] = j
 	}
+	out := make([]JudgeReliability, 0, len(progress)+len(model.Judges))
+	seen := map[uuid.UUID]bool{}
+	add := func(id uuid.UUID) JudgeReliability {
+		entry := JudgeReliability{ID: id}
+		if j, ok := known[id]; ok {
+			entry.Reliability = j.Reliability
+			entry.Alpha = j.Alpha
+			entry.Beta = j.Beta
+			entry.Comparisons = j.Comparisons
+		} else {
+			// Accepted judges who have not judged yet still appear, at the
+			// Beta(3,1) prior, so the host can see who is holding things up.
+			entry.Alpha = crowdbt.PriorAlpha
+			entry.Beta = crowdbt.PriorBeta
+			entry.Reliability = crowdbt.PriorAlpha / (crowdbt.PriorAlpha + crowdbt.PriorBeta)
+		}
+		return entry
+	}
+	for _, row := range progress {
+		if row.UserID == nil || seen[*row.UserID] {
+			continue
+		}
+		entry := add(*row.UserID)
+		entry.Username = deref(row.Username)
+		entry.Email = row.Email
+		entry.Total = row.Total
+		entry.Done = row.Done
+		out = append(out, entry)
+		seen[*row.UserID] = true
+	}
+	// A judge removed mid-event can still have judgments in the log; keep them
+	// visible so the review matches the recomputed model.
+	for _, j := range model.Judges {
+		if seen[j.ID] {
+			continue
+		}
+		out = append(out, add(j.ID))
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Reliability != out[j].Reliability {
+			return out[i].Reliability > out[j].Reliability
+		}
+		return out[i].ID.String() < out[j].ID.String()
+	})
 	return out
 }
 
@@ -859,22 +902,29 @@ func disagreements(outcomes []db.ListPairOutcomesRow, subs []Submission) []Disag
 	type group struct {
 		a       uuid.UUID
 		b       uuid.UUID
+		pairID  uuid.UUID
 		winners map[uuid.UUID]int
 	}
-	groups := map[uuid.UUID]*group{}
+	// Judges are assigned the same canonical pair in separate rows, so split
+	// decisions must be grouped by the submission pair, not by pair id.
+	groups := map[string]*group{}
 	for _, o := range outcomes {
 		if o.WinnerSubmissionID == nil {
 			continue
 		}
-		g := groups[o.PairID]
+		a, b := canonicalA(o.SubmissionA, o.SubmissionB), canonicalB(o.SubmissionA, o.SubmissionB)
+		key := a.String() + "|" + b.String()
+		g := groups[key]
 		if g == nil {
-			g = &group{a: o.SubmissionA, b: o.SubmissionB, winners: map[uuid.UUID]int{}}
-			groups[o.PairID] = g
+			g = &group{a: a, b: b, pairID: o.PairID, winners: map[uuid.UUID]int{}}
+			groups[key] = g
+		} else if o.PairID.String() < g.pairID.String() {
+			g.pairID = o.PairID
 		}
 		g.winners[*o.WinnerSubmissionID]++
 	}
 	out := make([]Disagreement, 0)
-	for pairID, g := range groups {
+	for _, g := range groups {
 		if len(g.winners) < 2 {
 			continue
 		}
@@ -885,7 +935,7 @@ func disagreements(outcomes []db.ListPairOutcomesRow, subs []Submission) []Disag
 			total += n
 		}
 		out = append(out, Disagreement{
-			PairID: pairID, TitleA: titles[g.a], TitleB: titles[g.b],
+			PairID: g.pairID, TitleA: titles[g.a], TitleB: titles[g.b],
 			Judgments: total, WinnerCount: counts,
 		})
 	}

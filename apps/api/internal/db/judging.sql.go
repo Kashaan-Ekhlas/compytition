@@ -861,6 +861,35 @@ func (q *Queries) ResetPairStatus(ctx context.Context, arg ResetPairStatusParams
 	return err
 }
 
+const restoreSkippedPairsForJudge = `-- name: RestoreSkippedPairsForJudge :exec
+UPDATE judging_pairs p SET status = 'pending'
+WHERE p.event_id = $1 AND p.judge_id = $2 AND p.status = 'skipped'
+  AND (p.submission_a = $3 OR p.submission_b = $3
+       OR p.submission_a = $4 OR p.submission_b = $4)
+  AND NOT EXISTS (
+      SELECT 1 FROM judgments j WHERE j.pair_id = p.id AND j.is_current = TRUE
+  )
+`
+
+type RestoreSkippedPairsForJudgeParams struct {
+	EventID     uuid.UUID `json:"event_id"`
+	JudgeID     uuid.UUID `json:"judge_id"`
+	SubmissionA uuid.UUID `json:"submission_a"`
+	SubmissionB uuid.UUID `json:"submission_b"`
+}
+
+// Undoing a conflict call should put back the pending pairs that the conflict
+// skipped. Pairs that already carry a current judgment are left alone.
+func (q *Queries) RestoreSkippedPairsForJudge(ctx context.Context, arg RestoreSkippedPairsForJudgeParams) error {
+	_, err := q.db.Exec(ctx, restoreSkippedPairsForJudge,
+		arg.EventID,
+		arg.JudgeID,
+		arg.SubmissionA,
+		arg.SubmissionB,
+	)
+	return err
+}
+
 const skipPendingPairsForJudge = `-- name: SkipPendingPairsForJudge :exec
 UPDATE judging_pairs SET status = 'skipped'
 WHERE event_id = $1 AND judge_id = $2 AND status = 'pending'

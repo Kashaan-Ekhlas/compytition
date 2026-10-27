@@ -199,7 +199,12 @@ func (s *Service) ListForEvent(ctx context.Context, userID, eventID uuid.UUID, s
 	}
 	var statusPtr *string
 	if status != "" {
-		statusPtr = &status
+		switch status {
+		case "draft", "submitted":
+			statusPtr = &status
+		default:
+			return nil, 0, apperr.Invalid("status", "Status must be draft or submitted.")
+		}
 	}
 	rows, err := s.store.ListSubmissionsForEvent(ctx, db.ListSubmissionsForEventParams{
 		EventID: eventID, Status: statusPtr, Lim: limit, Off: offset,

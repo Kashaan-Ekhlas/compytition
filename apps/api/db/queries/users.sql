@@ -61,6 +61,12 @@ DELETE FROM sessions WHERE id = $1;
 -- name: DeleteExpiredSessions :exec
 DELETE FROM sessions WHERE expires_at < now();
 
+-- name: DeleteExpiredOAuthStates :exec
+DELETE FROM oauth_states WHERE expires_at < now();
+
+-- name: DeleteStaleLoginAttempts :exec
+DELETE FROM login_attempts WHERE first_attempt_at < now() - interval '24 hours';
+
 -- name: GetProfile :one
 SELECT * FROM profiles WHERE user_id = $1;
 

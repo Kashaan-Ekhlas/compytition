@@ -152,7 +152,11 @@ func (s *Service) Bookmarks(ctx context.Context, userID uuid.UUID) ([]Bookmark, 
 }
 
 func (s *Service) AddBookmark(ctx context.Context, userID, eventID uuid.UUID) error {
-	if _, err := s.store.GetEventByID(ctx, eventID); err != nil {
+	ev, err := s.store.GetEventByID(ctx, eventID)
+	if err != nil {
+		return apperr.ErrNotFound
+	}
+	if ev.Status == "draft" {
 		return apperr.ErrNotFound
 	}
 	return s.store.AddBookmark(ctx, db.AddBookmarkParams{UserID: userID, EventID: eventID})

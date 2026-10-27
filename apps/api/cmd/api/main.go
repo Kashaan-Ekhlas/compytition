@@ -57,15 +57,25 @@ func main() {
 
 	cleanupCtx, cancelCleanup := context.WithCancel(context.Background())
 	defer cancelCleanup()
+	cleanup := func() {
+		if err := store.DeleteExpiredSessions(cleanupCtx); err != nil {
+			log.Warn("session cleanup failed", "error", err)
+		}
+		if err := store.DeleteExpiredOAuthStates(cleanupCtx); err != nil {
+			log.Warn("oauth state cleanup failed", "error", err)
+		}
+		if err := store.DeleteStaleLoginAttempts(cleanupCtx); err != nil {
+			log.Warn("login attempt cleanup failed", "error", err)
+		}
+	}
+	cleanup()
 	go func() {
 		t := time.NewTicker(time.Hour)
 		defer t.Stop()
 		for {
 			select {
 			case <-t.C:
-				if err := store.DeleteExpiredSessions(cleanupCtx); err != nil {
-					log.Warn("session cleanup failed", "error", err)
-				}
+				cleanup()
 			case <-cleanupCtx.Done():
 				return
 			}

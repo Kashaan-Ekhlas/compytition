@@ -137,6 +137,15 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
+const deleteExpiredOAuthStates = `-- name: DeleteExpiredOAuthStates :exec
+DELETE FROM oauth_states WHERE expires_at < now()
+`
+
+func (q *Queries) DeleteExpiredOAuthStates(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, deleteExpiredOAuthStates)
+	return err
+}
+
 const deleteExpiredSessions = `-- name: DeleteExpiredSessions :exec
 DELETE FROM sessions WHERE expires_at < now()
 `
@@ -175,6 +184,15 @@ DELETE FROM sessions WHERE id = $1
 
 func (q *Queries) DeleteSessionByID(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deleteSessionByID, id)
+	return err
+}
+
+const deleteStaleLoginAttempts = `-- name: DeleteStaleLoginAttempts :exec
+DELETE FROM login_attempts WHERE first_attempt_at < now() - interval '24 hours'
+`
+
+func (q *Queries) DeleteStaleLoginAttempts(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, deleteStaleLoginAttempts)
 	return err
 }
 

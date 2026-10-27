@@ -58,28 +58,44 @@ func (s *Service) Get(ctx context.Context, userID uuid.UUID) (*Response, error) 
 		JudgeEvents:   []events.EventView{},
 	}
 
-	if list, err := s.registrations.ListMine(ctx, userID); err == nil {
+	if list, err := s.registrations.ListMine(ctx, userID); err != nil {
+		return nil, err
+	} else {
 		out.Registrations = list
 	}
-	if list, err := s.teams.ListMine(ctx, userID); err == nil {
+	if list, err := s.teams.ListMine(ctx, userID); err != nil {
+		return nil, err
+	} else {
 		out.Teams = list
 	}
-	if list, err := s.teams.ListMyInvites(ctx, userID); err == nil {
+	if list, err := s.teams.ListMyInvites(ctx, userID); err != nil {
+		return nil, err
+	} else {
 		out.TeamInvites = list
 	}
-	if list, err := s.teams.ListMyJoinRequests(ctx, userID); err == nil {
+	if list, err := s.teams.ListMyJoinRequests(ctx, userID); err != nil {
+		return nil, err
+	} else {
 		out.JoinRequests = list
 	}
-	if list, err := s.submissions.ListMine(ctx, userID); err == nil {
+	if list, err := s.submissions.ListMine(ctx, userID); err != nil {
+		return nil, err
+	} else {
 		out.Submissions = list
 	}
-	if list, err := s.events.ListHosted(ctx, userID); err == nil {
+	if list, err := s.events.ListHosted(ctx, userID); err != nil {
+		return nil, err
+	} else {
 		out.HostedEvents = list
 	}
-	if list, err := s.events.ListForJudge(ctx, userID); err == nil {
+	if list, err := s.events.ListForJudge(ctx, userID); err != nil {
+		return nil, err
+	} else {
 		out.JudgeEvents = list
 	}
-	if count, err := s.store.CountUnreadNotifications(ctx, userID); err == nil {
+	if count, err := s.store.CountUnreadNotifications(ctx, userID); err != nil {
+		return nil, err
+	} else {
 		out.UnreadNotifications = count
 	}
 

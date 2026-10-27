@@ -18,4 +18,6 @@ COPY --from=build /out/migrate /app/migrate
 COPY --from=build /out/seed /app/seed
 USER app
 EXPOSE 8080
-ENTRYPOINT ["/app/api"]
+# CMD (not ENTRYPOINT) so `docker compose run api /app/seed` and
+# `/app/migrate` can replace the default command.
+CMD ["/app/api"]

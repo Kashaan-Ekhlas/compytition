@@ -254,6 +254,7 @@ type TeamMember struct {
 	TeamID   uuid.UUID `json:"team_id"`
 	UserID   uuid.UUID `json:"user_id"`
 	JoinedAt time.Time `json:"joined_at"`
+	EventID  uuid.UUID `json:"event_id"`
 }
 
 type User struct {

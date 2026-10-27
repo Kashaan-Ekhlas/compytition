@@ -49,7 +49,7 @@ DELETE FROM teams WHERE id = $1;
 UPDATE teams SET owner_id = $2, updated_at = now() WHERE id = $1;
 
 -- name: AddTeamMember :exec
-INSERT INTO team_members (team_id, user_id) VALUES ($1, $2);
+INSERT INTO team_members (event_id, team_id, user_id) VALUES ($1, $2, $3);
 
 -- name: RemoveTeamMember :exec
 DELETE FROM team_members WHERE team_id = $1 AND user_id = $2;

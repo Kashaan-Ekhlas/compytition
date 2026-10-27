@@ -13,16 +13,17 @@ import (
 )
 
 const addTeamMember = `-- name: AddTeamMember :exec
-INSERT INTO team_members (team_id, user_id) VALUES ($1, $2)
+INSERT INTO team_members (event_id, team_id, user_id) VALUES ($1, $2, $3)
 `
 
 type AddTeamMemberParams struct {
-	TeamID uuid.UUID `json:"team_id"`
-	UserID uuid.UUID `json:"user_id"`
+	EventID uuid.UUID `json:"event_id"`
+	TeamID  uuid.UUID `json:"team_id"`
+	UserID  uuid.UUID `json:"user_id"`
 }
 
 func (q *Queries) AddTeamMember(ctx context.Context, arg AddTeamMemberParams) error {
-	_, err := q.db.Exec(ctx, addTeamMember, arg.TeamID, arg.UserID)
+	_, err := q.db.Exec(ctx, addTeamMember, arg.EventID, arg.TeamID, arg.UserID)
 	return err
 }
 
@@ -348,7 +349,7 @@ func (q *Queries) GetTeamInvite(ctx context.Context, id uuid.UUID) (TeamInvite, 
 }
 
 const getTeamMember = `-- name: GetTeamMember :one
-SELECT team_id, user_id, joined_at FROM team_members WHERE team_id = $1 AND user_id = $2
+SELECT team_id, user_id, joined_at, event_id FROM team_members WHERE team_id = $1 AND user_id = $2
 `
 
 type GetTeamMemberParams struct {
@@ -359,7 +360,12 @@ type GetTeamMemberParams struct {
 func (q *Queries) GetTeamMember(ctx context.Context, arg GetTeamMemberParams) (TeamMember, error) {
 	row := q.db.QueryRow(ctx, getTeamMember, arg.TeamID, arg.UserID)
 	var i TeamMember
-	err := row.Scan(&i.TeamID, &i.UserID, &i.JoinedAt)
+	err := row.Scan(
+		&i.TeamID,
+		&i.UserID,
+		&i.JoinedAt,
+		&i.EventID,
+	)
 	return i, err
 }
 

@@ -118,7 +118,10 @@ func (s *Service) Create(ctx context.Context, userID, eventID uuid.UUID, name st
 			}
 			return err
 		}
-		if err := q.AddTeamMember(ctx, db.AddTeamMemberParams{TeamID: t.ID, UserID: userID}); err != nil {
+		if err := q.AddTeamMember(ctx, db.AddTeamMemberParams{EventID: eventID, TeamID: t.ID, UserID: userID}); err != nil {
+			if unique(err) {
+				return apperr.Invalid("team", "You are already in a team for this event.")
+			}
 			return err
 		}
 		team = t
@@ -563,7 +566,10 @@ func (s *Service) joinTeam(ctx context.Context, userID, teamID uuid.UUID, respon
 		if count >= int32(ev.MaxTeamSize) {
 			return apperr.Invalid("team", "This team is full.")
 		}
-		if err := q.AddTeamMember(ctx, db.AddTeamMemberParams{TeamID: teamID, UserID: userID}); err != nil {
+		if err := q.AddTeamMember(ctx, db.AddTeamMemberParams{EventID: t.EventID, TeamID: teamID, UserID: userID}); err != nil {
+			if unique(err) {
+				return apperr.Invalid("team", "You are already in a team for this event.")
+			}
 			return err
 		}
 		// A registered team automatically registers late joiners with the same answers.

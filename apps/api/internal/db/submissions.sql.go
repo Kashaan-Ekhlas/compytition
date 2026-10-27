@@ -444,6 +444,23 @@ func (q *Queries) ListSubmissionsForJudging(ctx context.Context, eventID uuid.UU
 	return items, nil
 }
 
+const reassignSubmission = `-- name: ReassignSubmission :exec
+UPDATE submissions
+SET created_by = $2, registration_id = $3, updated_at = now()
+WHERE id = $1
+`
+
+type ReassignSubmissionParams struct {
+	ID             uuid.UUID  `json:"id"`
+	CreatedBy      uuid.UUID  `json:"created_by"`
+	RegistrationID *uuid.UUID `json:"registration_id"`
+}
+
+func (q *Queries) ReassignSubmission(ctx context.Context, arg ReassignSubmissionParams) error {
+	_, err := q.db.Exec(ctx, reassignSubmission, arg.ID, arg.CreatedBy, arg.RegistrationID)
+	return err
+}
+
 const updateSubmission = `-- name: UpdateSubmission :one
 UPDATE submissions
 SET title = $2, description = $3, repo_url = $4, demo_url = $5,

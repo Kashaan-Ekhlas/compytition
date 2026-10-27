@@ -14,6 +14,11 @@ SELECT * FROM submissions WHERE registration_id = $1;
 -- name: GetSubmissionByTeam :one
 SELECT * FROM submissions WHERE event_id = $1 AND team_id = $2;
 
+-- name: ReassignSubmission :exec
+UPDATE submissions
+SET created_by = $2, registration_id = $3, updated_at = now()
+WHERE id = $1;
+
 -- name: GetSubmissionForUser :one
 SELECT s.* FROM submissions s
 WHERE s.event_id = $1

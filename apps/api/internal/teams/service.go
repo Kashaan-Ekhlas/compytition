@@ -204,6 +204,37 @@ func (s *Service) Get(ctx context.Context, viewerID *uuid.UUID, teamID uuid.UUID
 	if owner, err := s.store.GetUserByID(ctx, team.OwnerID); err == nil {
 		v.OwnerUsername = owner.Username
 	}
+	// The roster contains names and join times. Only members and event
+	// managers may see it; everyone else gets the public team card.
+	canViewRoster := false
+	isManager := false
+	if viewerID != nil {
+		for _, m := range members {
+			if m.UserID == *viewerID {
+				v.IsMember = true
+				break
+			}
+		}
+		v.IsOwner = v.IsMember && team.OwnerID == *viewerID
+		canViewRoster = v.IsMember
+		if !canViewRoster {
+			allowed, err := s.store.CanManageEvent(ctx, db.CanManageEventParams{OrganizerID: *viewerID, ID: team.EventID})
+			if err != nil {
+				return nil, err
+			}
+			canViewRoster = allowed
+			isManager = allowed
+		}
+		if _, err := s.store.GetPendingJoinRequestForTeamUser(ctx, db.GetPendingJoinRequestForTeamUserParams{TeamID: teamID, UserID: *viewerID}); err == nil {
+			v.MyPendingRequest = true
+		}
+		if _, err := s.store.GetPendingTeamInviteForTeamUser(ctx, db.GetPendingTeamInviteForTeamUserParams{TeamID: teamID, InvitedUserID: *viewerID}); err == nil {
+			v.MyPendingInvite = true
+		}
+	}
+	if !canViewRoster {
+		return &v, nil
+	}
 	v.Members = make([]MemberView, 0, len(members))
 	for _, m := range members {
 		v.Members = append(v.Members, MemberView{
@@ -211,50 +242,26 @@ func (s *Service) Get(ctx context.Context, viewerID *uuid.UUID, teamID uuid.UUID
 			JoinedAt: m.JoinedAt, IsOwner: m.UserID == team.OwnerID,
 		})
 	}
-	if viewerID != nil {
-		v.IsMember = false
-		for _, m := range members {
-			if m.UserID == *viewerID {
-				v.IsMember = true
+	if v.IsOwner || isManager {
+		invites, _ := s.store.ListTeamInvites(ctx, teamID)
+		for _, inv := range invites {
+			if inv.Status != "pending" {
+				continue
 			}
+			v.PendingInvites = append(v.PendingInvites, InviteView{
+				ID: inv.ID, TeamID: inv.TeamID, InvitedUserID: inv.InvitedUserID,
+				InvitedBy: inv.InvitedBy, Status: inv.Status, TeamName: inv.TeamName,
+				EventID: inv.EventID, EventTitle: inv.EventTitle,
+				InvitedByUsername: inv.InvitedByUsername, CreatedAt: inv.CreatedAt,
+			})
 		}
-		v.IsOwner = v.IsMember && team.OwnerID == *viewerID
-		if v.IsMember {
-			if _, err := s.store.GetPendingJoinRequestForTeamUser(ctx, db.GetPendingJoinRequestForTeamUserParams{TeamID: teamID, UserID: *viewerID}); err == nil {
-				v.MyPendingRequest = true
-			}
-			if _, err := s.store.GetPendingTeamInviteForTeamUser(ctx, db.GetPendingTeamInviteForTeamUserParams{TeamID: teamID, InvitedUserID: *viewerID}); err == nil {
-				v.MyPendingInvite = true
-			}
-		} else {
-			if _, err := s.store.GetPendingJoinRequestForTeamUser(ctx, db.GetPendingJoinRequestForTeamUserParams{TeamID: teamID, UserID: *viewerID}); err == nil {
-				v.MyPendingRequest = true
-			}
-			if _, err := s.store.GetPendingTeamInviteForTeamUser(ctx, db.GetPendingTeamInviteForTeamUserParams{TeamID: teamID, InvitedUserID: *viewerID}); err == nil {
-				v.MyPendingInvite = true
-			}
-		}
-		if v.IsOwner {
-			invites, _ := s.store.ListTeamInvites(ctx, teamID)
-			for _, inv := range invites {
-				if inv.Status != "pending" {
-					continue
-				}
-				v.PendingInvites = append(v.PendingInvites, InviteView{
-					ID: inv.ID, TeamID: inv.TeamID, InvitedUserID: inv.InvitedUserID,
-					InvitedBy: inv.InvitedBy, Status: inv.Status, TeamName: inv.TeamName,
-					EventID: inv.EventID, EventTitle: inv.EventTitle,
-					InvitedByUsername: inv.InvitedByUsername, CreatedAt: inv.CreatedAt,
-				})
-			}
-			reqs, _ := s.store.ListJoinRequestsForTeam(ctx, teamID)
-			for _, req := range reqs {
-				v.PendingRequests = append(v.PendingRequests, JoinRequestView{
-					ID: req.ID, TeamID: req.TeamID, UserID: req.UserID, Message: req.Message,
-					Status: req.Status, Username: req.Username, FullName: derefString(req.FullName),
-					CreatedAt: req.CreatedAt,
-				})
-			}
+		reqs, _ := s.store.ListJoinRequestsForTeam(ctx, teamID)
+		for _, req := range reqs {
+			v.PendingRequests = append(v.PendingRequests, JoinRequestView{
+				ID: req.ID, TeamID: req.TeamID, UserID: req.UserID, Message: req.Message,
+				Status: req.Status, Username: req.Username, FullName: derefString(req.FullName),
+				CreatedAt: req.CreatedAt,
+			})
 		}
 	}
 	return &v, nil
@@ -610,6 +617,53 @@ func (s *Service) Leave(ctx context.Context, userID, teamID uuid.UUID) error {
 		if err != nil {
 			return err
 		}
+		var next *uuid.UUID
+		for _, m := range members {
+			if m.UserID == userID {
+				continue
+			}
+			uid := m.UserID
+			next = &uid
+			break
+		}
+		if next == nil {
+			// The last member leaving dissolves the team. Registrations go
+			// first so the team submission is not left orphaned.
+			if err := q.DeleteRegistrationsForTeam(ctx, &teamID); err != nil {
+				return err
+			}
+			return q.DeleteTeam(ctx, teamID)
+		}
+		// Deleting a registration cascades to a submission that points at it.
+		// If the leaver created the team submission, hand it to a remaining
+		// member instead of destroying it.
+		if sub, err := q.GetSubmissionByTeam(ctx, db.GetSubmissionByTeamParams{EventID: team.EventID, TeamID: &teamID}); err == nil {
+			if sub.CreatedBy == userID {
+				var heir *uuid.UUID
+				var heirReg *uuid.UUID
+				for _, m := range members {
+					if m.UserID == userID {
+						continue
+					}
+					reg, err := q.GetRegistrationForEventUser(ctx, db.GetRegistrationForEventUserParams{EventID: team.EventID, UserID: m.UserID})
+					if err == nil && reg.Status == "registered" {
+						uid, rid := m.UserID, reg.ID
+						heir, heirReg = &uid, &rid
+						break
+					}
+				}
+				if heir == nil || heirReg == nil {
+					return apperr.Invalid("team", "The team submission could not be transferred. Ask the organizer for help.")
+				}
+				if err := q.ReassignSubmission(ctx, db.ReassignSubmissionParams{
+					ID: sub.ID, CreatedBy: *heir, RegistrationID: heirReg,
+				}); err != nil {
+					return err
+				}
+			}
+		} else if !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
 		if err := q.DeleteRegistrationForTeamUser(ctx, db.DeleteRegistrationForTeamUserParams{EventID: team.EventID, UserID: userID}); err != nil {
 			return err
 		}
@@ -624,21 +678,6 @@ func (s *Service) Leave(ctx context.Context, userID, teamID uuid.UUID) error {
 		}
 		if team.OwnerID != userID {
 			return nil
-		}
-		var next *uuid.UUID
-		for _, m := range members {
-			if m.UserID == userID {
-				continue
-			}
-			uid := m.UserID
-			next = &uid
-			break
-		}
-		if next == nil {
-			if err := q.DeleteRegistrationsForTeam(ctx, &teamID); err != nil {
-				return err
-			}
-			return q.DeleteTeam(ctx, teamID)
 		}
 		if err := q.UpdateTeamOwner(ctx, db.UpdateTeamOwnerParams{ID: teamID, OwnerID: *next}); err != nil {
 			return err

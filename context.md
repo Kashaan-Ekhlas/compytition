@@ -79,7 +79,7 @@ Key tables and invariants:
 - `events` — slug unique, organizer, lifecycle status, judging status, JSONB `criteria` (array of `{name,description}`), JSONB `judging_config` (`{target_comparisons,judge_budget,anchor_count}`), generated `search_vector` + GIN index.
 - `event_form_fields` — schema-driven registration fields; type CHECK; options JSONB; ordered.
 - `event_staff` — `(event_id,email,role)` unique; `invite_token` unique; accepted rows carry `user_id`.
-- `teams` — `(event_id,name)` unique; owner. `team_members` stores `event_id` and enforces unique `(event_id,user_id)`, so the database itself prevents a user joining two teams in one event; max size is checked under `SELECT … FOR UPDATE`.
+- `teams` — `(event_id,name)` unique; owner. `team_members` stores `event_id` with a composite FK back to `teams(event_id,id)` and a unique `(event_id,user_id)` index, so the database itself prevents a user joining two teams in one event; max size is checked under `SELECT … FOR UPDATE`.
 - `team_invites` / `team_join_requests` — `(team_id,user)` unique; pending → accepted/rejected/cancelled.
 - `registrations` — `(event_id,user_id)` unique; `team_id` links team entry; answers JSONB.
 - `submissions` — one per registration; partial unique `(event_id,team_id) WHERE team_id IS NOT NULL`.

@@ -209,6 +209,7 @@ Demo accounts: `host@compytition.local` (organizer), `ava@`, `milo@`, `rin@compy
 
 Newest first.
 
+- **2026-10-27** — Fixed WebSocket upgrades through the logging middleware: the response wrapper now preserves `http.Hijacker` and `http.Flusher` (plus `Unwrap`), with unit coverage. Before this, team chat upgrades failed with “response does not implement http.Hijacker”.
 - **2026-10-27** — Fixed the Compose web build: `API_INTERNAL_URL` is now a build arg because Next bakes rewrite destinations into the standalone build. The image previously proxied `/api/v1` to `localhost:8080` inside the web container and returned 500s.
 - **2026-10-27** — Completed the Next.js app: landing, discovery, event detail with bookmarks, registration, team management + websocket chat, submission editor, dashboard, settings, organizer home and the tabbed manage console (overview/form/participants/submissions/judges/judging), judge queue and pairwise comparison screen, staff invite acceptance. Added Vitest coverage for the API client and formatters, fixed Next config loading under TypeScript 5.9, and pinned the toolchain.
 - **2026-10-27** — Browser smoke test found and fixed: judging review rendering crashed when `warnings` was JSON `null` (server now emits `[]`, client defaults arrays); judges can now undo their last call after the queue is empty or the page reloads (`last_pair_id` in progress); seed no longer ships two submissions titled “Loopback”. Added Docker Compose, Make targets, `.env.example`, CI workflow, README, and refreshed this file + `endpoints.md`.

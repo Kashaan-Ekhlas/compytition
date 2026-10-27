@@ -1,7 +1,9 @@
 package server
 
 import (
+	"bufio"
 	"context"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -57,6 +59,28 @@ func (w *statusRecorder) Write(b []byte) (int, error) {
 	n, err := w.ResponseWriter.Write(b)
 	w.bytes += n
 	return n, err
+}
+
+// Unwrap lets http.ResponseController reach the underlying writer.
+func (w *statusRecorder) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+// Hijack keeps WebSocket upgrades working through the logging middleware.
+// gorilla/websocket asserts http.Hijacker directly on the writer it receives.
+func (w *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hj, ok := w.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, fmt.Errorf("response writer does not support hijacking")
+	}
+	if w.status == 0 {
+		w.status = http.StatusSwitchingProtocols
+	}
+	return hj.Hijack()
+}
+
+func (w *statusRecorder) Flush() {
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 func Logging(log *slog.Logger) func(http.Handler) http.Handler {

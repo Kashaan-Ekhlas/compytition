@@ -157,7 +157,7 @@ Frontend directly:
 export PATH="$HOME/.nvm/versions/node/v24.18.0/bin:$PATH"
 cd apps/web
 npm ci
-API_INTERNAL_URL=http://localhost:8080 npm run dev -- -p 3100
+API_INTERNAL_URL=http://localhost:8080 NEXT_PUBLIC_WS_BASE=ws://localhost:8080 npm run dev -- -p 3100
 npm run build
 npm run lint
 npm test -- --run
@@ -211,6 +211,7 @@ Demo accounts: `host@compytition.local` (organizer), `ava@`, `milo@`, `rin@compy
 
 Newest first.
 
+- **2026-10-27** — Closed the last review gaps: draft registration forms now 404 for anonymous visitors (organizer/staff/judge only), the feedback admin queue honours the database `is_admin` flag and not just `ADMIN_EMAILS`, publishing results stamps `judging_locked_at`, and the web app sends baseline security headers.
 - **2026-10-27** — Enforced one team per user per event in the database. `team_members` now carries `event_id` with a unique `(event_id,user_id)` index (migration `000002`), closing a race between concurrent creates/joins that the service-layer check could miss.
 - **2026-10-27** — Fixed WebSocket upgrades through the logging middleware: the response wrapper now preserves `http.Hijacker` and `http.Flusher` (plus `Unwrap`), with unit coverage. Before this, team chat upgrades failed with “response does not implement http.Hijacker”.
 - **2026-10-27** — Fixed the Compose web build: `API_INTERNAL_URL` is now a build arg because Next bakes rewrite destinations into the standalone build. The image previously proxied `/api/v1` to `localhost:8080` inside the web container and returned 500s.

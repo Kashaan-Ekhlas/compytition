@@ -49,6 +49,7 @@ go run ./cmd/api                 # :8080, auto-migrates
 
 cd apps/web
 export PATH="$HOME/.nvm/versions/node/v24.18.0/bin:$PATH"
+export NEXT_PUBLIC_WS_BASE='ws://localhost:8080'
 npm ci
 npm run dev                      # :3000, proxies /api/v1 to :8080
 ```

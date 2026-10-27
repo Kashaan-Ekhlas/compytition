@@ -44,6 +44,7 @@ services:
     build:
       context: ./apps/web
       args:
+        API_INTERNAL_URL: http://api:8080
         NEXT_PUBLIC_API_BASE: /api/v1
         NEXT_PUBLIC_WS_BASE: ${NEXT_PUBLIC_WS_BASE:-ws://localhost:8080}
     restart: unless-stopped

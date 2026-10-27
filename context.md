@@ -204,13 +204,14 @@ Demo accounts: `host@compytition.local` (organizer), `ava@`, `milo@`, `rin@compy
 ## Open Questions
 
 - Production cookie sharing between `web` and `api` subdomains will need `COOKIE_DOMAIN`; localhost works because cookies ignore ports.
-- Whether to allow team changes after registration closes (current behavior: no new teams/joins after close, leaving always allowed).
+- Whether to allow team changes after registration closes (current behavior: no new teams/joins after close; leaving remains available and transfers the team submission when needed).
 - Whether event organizers should be forced through onboarding before creating events (currently only auth is required).
 
 ## Changelog
 
 Newest first.
 
+- **2026-10-27** — Review hardening pass. Teams: leaving stays available even when the team has a submission (the submission is handed to a remaining registered member instead of cascading away), and the roster/pending lists are only exposed to members and event managers. Judging: split decisions are grouped by submission pair (not per-judge pair row), accepted judges with no judgments appear at the Beta(3,1) prior, and undoing a conflict restores the pairs that conflict skipped. Events: status transitions lock the event row, judge invites/removals/acceptance are blocked once judging starts, co-organizers appear in `/host/events`, and staff invite tokens are redacted from request logs. Auth/config: login-lock windows reset correctly, auto-generated placeholder usernames cannot be chosen, malformed numeric/boolean env vars fail startup, and hourly cleanup covers OAuth states and stale login attempts. API: dashboard errors propagate instead of returning empty sections, draft bookmarks 404, and submission status filters are validated. Web: `safeNext` closes open redirects in login/register/onboarding and onboarding preserves the intended destination.
 - **2026-10-27** — Closed the last review gaps: draft registration forms now 404 for anonymous visitors (organizer/staff/judge only), the feedback admin queue honours the database `is_admin` flag and not just `ADMIN_EMAILS`, publishing results stamps `judging_locked_at`, and the web app sends baseline security headers.
 - **2026-10-27** — Enforced one team per user per event in the database. `team_members` now carries `event_id` with a unique `(event_id,user_id)` index (migration `000002`), closing a race between concurrent creates/joins that the service-layer check could miss.
 - **2026-10-27** — Fixed WebSocket upgrades through the logging middleware: the response wrapper now preserves `http.Hijacker` and `http.Flusher` (plus `Unwrap`), with unit coverage. Before this, team chat upgrades failed with “response does not implement http.Hijacker”.

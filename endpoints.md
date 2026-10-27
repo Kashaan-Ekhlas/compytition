@@ -52,9 +52,9 @@ Status legend: ✅ implemented
 | ✅ | GET | `/events/{id}/form` | public (drafts: organizer/staff/judge) | `{ fields }` registration schema; draft events return 404 to everyone else |
 | ✅ | PUT | `/events/{id}/form` | organizer/staff | `{ fields: [...] }` replaces the schema |
 | ✅ | GET | `/events/{id}/staff?role=judge\|co_organizer` | organizer/staff | staff + pending invite accept URL |
-| ✅ | POST | `/events/{id}/staff` | organizer/staff | `{ email, role }` → invite; email-bound |
-| ✅ | DELETE | `/events/{id}/staff/{staffId}` | organizer/staff | remove judge / co-organizer |
-| ✅ | POST | `/invites/staff/{token}/accept` | user | logged-in email must match the invite |
+| ✅ | POST | `/events/{id}/staff` | organizer/staff | `{ email, role }` → invite; email-bound; new judges only while judging is in `setup` |
+| ✅ | DELETE | `/events/{id}/staff/{staffId}` | organizer/staff | remove judge (only before judging starts) / co-organizer |
+| ✅ | POST | `/invites/staff/{token}/accept` | user | logged-in email must match the invite; blocked after judging starts or results publish |
 | ✅ | GET | `/events/{id}/judging-config` | organizer/staff/judge | `{ config, criteria }` |
 | ✅ | PUT | `/events/{id}/judging-config` | organizer/staff | `{ target_comparisons, judge_budget, anchor_count }` |
 | ✅ | GET | `/judge/events` | judge | accepted judge assignments |
@@ -67,7 +67,7 @@ Status legend: ✅ implemented
 | ✅ | GET | `/events/{id}/teams` | optional | list teams (+ viewer invite/request flags) |
 | ✅ | GET | `/events/{id}/teams/mine` | user | my team for this event |
 | ✅ | GET | `/teams` | user | my teams |
-| ✅ | GET | `/teams/{id}` | optional | detail + members; owner sees pending invites/requests |
+| ✅ | GET | `/teams/{id}` | optional | detail; members + pending lists visible only to members and event managers |
 | ✅ | PATCH | `/teams/{id}` | owner | name, looking-for-members |
 | ✅ | DELETE | `/teams/{id}` | owner | dissolve when safe |
 | ✅ | POST | `/teams/{id}/invites` | owner | `{ username }`; explicit acceptance required |
@@ -79,7 +79,7 @@ Status legend: ✅ implemented
 | ✅ | GET | `/teams/{id}/join-requests` | owner | pending requests |
 | ✅ | POST | `/team-join-requests/{id}/accept` | owner | transactional size check |
 | ✅ | POST | `/team-join-requests/{id}/reject` | owner | |
-| ✅ | POST | `/teams/{id}/leave` | member | always allowed; ownership transfers or team dissolves |
+| ✅ | POST | `/teams/{id}/leave` | member | always allowed; keeps a team submission by transferring it, transfers ownership, or dissolves an empty team |
 | ✅ | GET | `/team-invites` | user | my pending invites |
 | ✅ | GET | `/team-join-requests` | user | my pending requests |
 
@@ -102,7 +102,7 @@ Status legend: ✅ implemented
 | ✅ | GET | `/events/{id}/submissions/me` | participant | my / my team's submission |
 | ✅ | POST | `/events/{id}/submissions` | participant | create before submission deadline |
 | ✅ | PATCH | `/submissions/{id}` | owner | update before deadline; blocked after judging locks |
-| ✅ | GET | `/events/{id}/submissions` | organizer/staff | all submissions for the event |
+| ✅ | GET | `/events/{id}/submissions` | organizer/staff | all submissions for the event; optional `status=draft\|submitted` |
 | ✅ | GET | `/submissions` | user | my submissions |
 
 ## Judging
@@ -114,9 +114,9 @@ Status legend: ✅ implemented
 | ✅ | POST | `/events/{id}/judging/start` | organizer/staff | requires at least one pair; sets `live` |
 | ✅ | GET | `/judge/events/{id}/next` | judge | next pending pair + progress (`last_pair_id`) + criteria |
 | ✅ | POST | `/judge/events/{id}/comparisons/{pairId}` | judge | `{ winner: "a"\|"b" }` or `{ skipped: true }` or `{ conflict: true }` |
-| ✅ | POST | `/judge/events/{id}/comparisons/{pairId}/undo` | judge | clears current judgment and returns pair to pending |
+| ✅ | POST | `/judge/events/{id}/comparisons/{pairId}/undo` | judge | clears current judgment and returns pair to pending; undoing a conflict restores skipped pairs |
 | ✅ | GET | `/judge/events/{id}/progress` | judge | `{ total, done, last_pair_id }` |
-| ✅ | GET | `/events/{id}/judging/review` | organizer/staff | ranking, reliability, disagreements, warnings, confidence |
+| ✅ | GET | `/events/{id}/judging/review` | organizer/staff | ranking, reliability (including zero-judgment judges), split decisions grouped by submission pair, warnings, confidence |
 | ✅ | POST | `/events/{id}/judging/publish` | organizer/staff | `{ force? }`; writes results, snapshots reliability, locks judging, audits |
 | ✅ | GET | `/events/{id}/results` | public / organizer | published ranking; organizer can preview before publication |
 
@@ -138,7 +138,7 @@ Status legend: ✅ implemented
 | ✅ | POST | `/feedback` | optional | bug reports / feedback |
 | ✅ | GET | `/admin/feedback` | admin | protected feedback queue |
 | ✅ | GET | `/bookmarks` | user | saved events |
-| ✅ | POST | `/events/{id}/bookmark` | user | save event |
+| ✅ | POST | `/events/{id}/bookmark` | user | save published/closed event; drafts return 404 |
 | ✅ | DELETE | `/events/{id}/bookmark` | user | remove bookmark |
 
 ## Not implemented (P1)

@@ -119,7 +119,7 @@ func (s *Service) ListFeedback(ctx context.Context, userID uuid.UUID, limit, off
 	if err != nil {
 		return nil, apperr.ErrNotFound
 	}
-	if !s.cfg.IsAdminEmail(user.Email) {
+	if !user.IsAdmin && !s.cfg.IsAdminEmail(user.Email) {
 		return nil, apperr.ErrNotFound
 	}
 	rows, err := s.store.ListFeedback(ctx, db.ListFeedbackParams{Limit: limit, Offset: offset})

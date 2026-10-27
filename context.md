@@ -12,9 +12,10 @@ Monorepo:
 
 ```
 compytition/
-  apps/api/          Go 1.22+ stdlib HTTP API
+  apps/api/          Go 1.26 stdlib HTTP API
     cmd/api/         API entrypoint (migrations + graceful shutdown)
     cmd/migrate/     up/down migration command
+    cmd/seed/        idempotent demo data with a finished judging run
     db/migrations/   embedded SQL migrations (golang-migrate)
     db/queries/      SQLC query sources
     db/embed.go      embeds migrations for the API/migrate binaries
@@ -63,6 +64,7 @@ Data flow: browser → Next.js `app/api` rewrite proxy → Go API `/api/v1/*` �
 - **2026-10-27** — Frontend is client-fetched through a shared `api()` helper and `AuthProvider`; Next rewrites `/api/v1/*` to `API_INTERNAL_URL` so the browser stays same-origin and the session cookie works without CORS in the normal path.
 - **2026-10-27** — Compose publishes web on `3100`, API on `8080` and Postgres on `5433`, avoiding collisions with local dev servers (notably an existing `:3000` app on this machine).
 - **2026-10-27** — Team chat connects directly to `NEXT_PUBLIC_WS_BASE` because websocket upgrades cannot go through Next rewrites reliably; Origin is checked server-side.
+- **2026-10-27** — Public health probes: `/healthz` (process up) and `/readyz` (Postgres ping) live outside `/api/v1` and skip authentication.
 - **2026-10-27** — Review/publish responses serialize empty collections as `[]` rather than `null`; the client also normalizes arrays defensively so a rendering path never assumes a non-nil slice.
 - **2026-10-27** — Judge progress includes `last_pair_id`, allowing undo to survive queue completion and page reloads without a separate endpoint.
 
@@ -145,7 +147,7 @@ export DATABASE_URL='postgres://compytition:compytition@localhost:5433/compytiti
 export WEB_ORIGIN='http://localhost:3100'
 go run ./cmd/api            # auto-migrates, listens on :8080
 go run ./cmd/migrate -down  # rollback
-/home/kash/go/bin/sqlc generate
+sqlc generate
 go test ./...
 ```
 
@@ -196,13 +198,13 @@ Demo accounts: `host@compytition.local` (organizer), `ava@`, `milo@`, `rin@compy
 - Deadline reminders and emailed invites are P1; no email provider abstraction yet.
 - Chat is a single in-process hub; multi-instance deployments need pub/sub.
 - The seeded demo event is pre-judged and published, so create a new event to exercise the judge flow end to end.
-- Docker image `golang:1.27.1-bookworm` is newer than the local toolchain; verify the tag exists before the first CI/CD image build.
+- Next bakes `API_INTERNAL_URL` into the standalone web build; changing the internal API address requires rebuilding the web image, not just changing the runtime env.
+- Test coverage is concentrated in assignment, CrowdBT and middleware. Domain services and HTTP handlers have no integration tests yet.
 
 ## Open Questions
 
 - Production cookie sharing between `web` and `api` subdomains will need `COOKIE_DOMAIN`; localhost works because cookies ignore ports.
 - Whether to allow team changes after registration closes (current behavior: no new teams/joins after close, leaving always allowed).
-- Exact CrowdBT hyperparameters and Kendall-tau threshold will be documented when implemented.
 - Whether event organizers should be forced through onboarding before creating events (currently only auth is required).
 
 ## Changelog

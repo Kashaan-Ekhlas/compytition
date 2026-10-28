@@ -11,13 +11,7 @@ export function SiteFooter() {
           </p>
         </div>
         <nav aria-label="Footer" className="flex flex-wrap gap-4 font-mono text-sm">
-          <Link className="chunky-link" href="/events">
-            Events
-          </Link>
-          <Link className="chunky-link" href="/host/events/new">
-            Host
-          </Link>
-          <Link className="chunky-link" href="/settings">
+          <Link className="chunky-link" href="/settings#feedback">
             Feedback
           </Link>
         </nav>

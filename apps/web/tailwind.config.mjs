@@ -9,19 +9,19 @@ const config = {
   theme: {
     extend: {
       colors: {
-        bg: "var(--bg)",
-        surface: "var(--surface)",
-        ink: "var(--ink)",
-        muted: "var(--muted)",
-        accent: "var(--accent)",
-        "accent-2": "var(--accent-2)",
-        "accent-3": "var(--accent-3)",
-        success: "var(--success)",
-        focus: "var(--focus)",
+        bg: "rgb(var(--bg-rgb) / <alpha-value>)",
+        surface: "rgb(var(--surface-rgb) / <alpha-value>)",
+        ink: "rgb(var(--ink-rgb) / <alpha-value>)",
+        muted: "rgb(var(--muted-rgb) / <alpha-value>)",
+        accent: "rgb(var(--accent-rgb) / <alpha-value>)",
+        "accent-2": "rgb(var(--accent-2-rgb) / <alpha-value>)",
+        "accent-3": "rgb(var(--accent-3-rgb) / <alpha-value>)",
+        success: "rgb(var(--success-rgb) / <alpha-value>)",
+        focus: "rgb(var(--focus-rgb) / <alpha-value>)",
       },
       fontFamily: {
         sans: ["Space Grotesk", "ui-sans-serif", "system-ui", "sans-serif"],
-        pixel: ["Silkscreen", "Space Mono", "monospace"],
+        pixel: ["Space Grotesk", "ui-sans-serif", "system-ui", "sans-serif"],
         mono: ["IBM Plex Mono", "ui-monospace", "SFMono-Regular", "monospace"],
       },
       boxShadow: {

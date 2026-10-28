@@ -81,7 +81,11 @@ export function Skeleton({ className }: { className?: string }) {
 export function LoadingBlock({ label = "Loading" }: { label?: string }) {
   return (
     <div className="flex items-center gap-3 py-10 font-mono text-base text-muted" role="status">
-      <span className="inline-block h-4 w-3 animate-blink bg-ink" aria-hidden="true" />
+      <span className="flex items-center gap-1" aria-hidden="true">
+        <span className="inline-block h-3 w-3 border-2 border-ink bg-accent" />
+        <span className="inline-block h-3 w-3 border-2 border-ink bg-accent/60" />
+        <span className="inline-block h-3 w-3 border-2 border-ink bg-accent/30" />
+      </span>
       {label}…
     </div>
   );

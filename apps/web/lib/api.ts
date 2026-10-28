@@ -70,7 +70,13 @@ export async function api<T>(path: string, options: Options = {}): Promise<T> {
 }
 
 export function errorMessage(error: unknown): string {
-  if (error instanceof ApiError) return error.message;
+  if (error instanceof ApiError) {
+    if (error.fields) {
+      const first = Object.values(error.fields)[0];
+      if (first) return first;
+    }
+    return error.message;
+  }
   if (error instanceof Error) return error.message;
   return "Something went wrong.";
 }

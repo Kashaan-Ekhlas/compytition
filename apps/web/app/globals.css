@@ -3,28 +3,26 @@
 @tailwind utilities;
 
 :root {
-  --bg: #f4efe3;
-  --surface: #ffffff;
-  --ink: #14110f;
-  --muted: #5b5650;
-  --accent: #ffd83d;
-  --accent-2: #d9414e;
-  --accent-3: #c7ccf2;
-  --success: #2f8f5b;
-  --focus: #3b2bff;
-  --halftone: rgba(20, 17, 15, 0.09);
-}
-
-[data-theme="arcade"] {
+  /* One theme only: the deep arcade palette. The -rgb triplets let Tailwind
+     compose opacity modifiers such as bg-accent/40 and border-ink/20. */
   --bg: #120b2e;
+  --bg-rgb: 18 11 46;
   --surface: #1c1342;
+  --surface-rgb: 28 19 66;
   --ink: #f6f1ff;
+  --ink-rgb: 246 241 255;
   --muted: #b7aedd;
+  --muted-rgb: 183 174 221;
   --accent: #ff4fd8;
-  --accent-2: #2ee6d6;
+  --accent-rgb: 255 79 216;
+  --accent-2: #ff5d73;
+  --accent-2-rgb: 255 93 115;
   --accent-3: #7a3ff2;
+  --accent-3-rgb: 122 63 242;
   --success: #48d597;
+  --success-rgb: 72 213 151;
   --focus: #ffd83d;
+  --focus-rgb: 255 216 61;
   --halftone: rgba(246, 241, 255, 0.12);
 }
 
@@ -65,9 +63,13 @@ h3 {
   text-wrap: balance;
 }
 
+/* Legacy class name kept so markup does not need a mass rename. Headings use
+   the same readable grotesk as buttons instead of a pixel display face. */
 .font-pixel {
-  letter-spacing: 0.02em;
-  line-height: 1.35;
+  font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
 }
 
 /* Halftone is decorative only; never place it behind body copy. */

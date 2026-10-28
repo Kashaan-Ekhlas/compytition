@@ -4,22 +4,22 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "@/components/auth-provider";
-import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { NotificationsMenu } from "@/components/layout/notifications-menu";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn, initials } from "@/lib/utils";
 
 const nav = [
-  { href: "/events", label: "Events" },
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/host", label: "Host" },
-  { href: "/judge", label: "Judge" },
+  { href: "/events", label: "Events", authOnly: false },
+  { href: "/dashboard", label: "Dashboard", authOnly: true },
+  { href: "/host", label: "Host", authOnly: true },
+  { href: "/judge", label: "Judge", authOnly: true },
 ];
 
 export function SiteHeader() {
   const { user, profile, loading, logout } = useAuth();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const visibleNav = nav.filter((item) => !item.authOnly || user);
 
   return (
     <header className="sticky top-0 z-40 border-b-2 border-ink bg-bg/95 backdrop-blur-[2px]">
@@ -31,8 +31,8 @@ export function SiteHeader() {
           <span className="font-pixel text-base tracking-tight sm:text-lg">COMPYTITION</span>
         </Link>
 
-        <nav aria-label="Main" className="ml-4 hidden items-center gap-1 md:flex">
-          {nav.map((item) => {
+        <nav aria-label="Main" className="ml-4 hidden translate-y-[2px] items-center gap-1 md:flex">
+          {visibleNav.map((item) => {
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
               <Link
@@ -51,7 +51,6 @@ export function SiteHeader() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          <ThemeToggle />
           {loading ? (
             <span className="hidden font-mono text-sm text-muted sm:inline">…</span>
           ) : user ? (
@@ -101,7 +100,7 @@ export function SiteHeader() {
       {menuOpen ? (
         <nav id="mobile-nav" aria-label="Mobile" className="border-t-2 border-ink bg-surface px-4 py-3 md:hidden">
           <ul className="space-y-1">
-            {nav.map((item) => (
+            {visibleNav.map((item) => (
               <li key={item.href}>
                 <Link
                   href={item.href}

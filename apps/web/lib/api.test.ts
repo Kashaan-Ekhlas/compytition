@@ -71,7 +71,7 @@ describe("api", () => {
     expect(apiError.message).toBe("Some fields need attention.");
     expect(apiError.fields).toEqual({ email: "Already registered." });
     expect(fieldErrors(apiError)).toEqual({ email: "Already registered." });
-    expect(errorMessage(apiError)).toBe("Some fields need attention.");
+    expect(errorMessage(apiError)).toBe("Already registered.");
   });
 
   it("falls back to a generic error for non-JSON responses", async () => {

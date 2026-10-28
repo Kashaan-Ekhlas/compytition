@@ -27,9 +27,9 @@ describe("formatDate", () => {
   });
 
   it("returns an em dash for missing or invalid values", () => {
-    expect(formatDate(null)).toBe("—");
-    expect(formatDate(undefined)).toBe("—");
-    expect(formatDate("not-a-date")).toBe("—");
+    expect(formatDate(null)).toBe("-");
+    expect(formatDate(undefined)).toBe("-");
+    expect(formatDate("not-a-date")).toBe("-");
   });
 });
 
@@ -65,8 +65,8 @@ describe("datetime-local conversion", () => {
 
 describe("relativeTime", () => {
   it("returns an em dash for missing values", () => {
-    expect(relativeTime(null)).toBe("—");
-    expect(relativeTime("bad")).toBe("—");
+    expect(relativeTime(null)).toBe("-");
+    expect(relativeTime("bad")).toBe("-");
   });
 
   it("describes past and future values", () => {

@@ -6,9 +6,9 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatDate(value?: string | null, withTime = false): string {
-  if (!value) return "—";
+  if (!value) return "-";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
+  if (Number.isNaN(date.getTime())) return "-";
   return new Intl.DateTimeFormat("en", {
     day: "numeric",
     month: "short",
@@ -41,9 +41,9 @@ export function fromDateTimeInput(value: string): string | null {
 }
 
 export function relativeTime(value?: string | null): string {
-  if (!value) return "—";
+  if (!value) return "-";
   const date = new Date(value).getTime();
-  if (Number.isNaN(date)) return "—";
+  if (Number.isNaN(date)) return "-";
   const delta = date - Date.now();
   const abs = Math.abs(delta);
   const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [

@@ -12,6 +12,9 @@ export interface Profile {
   full_name: string;
   college: string;
   course: string;
+  country: string;
+  state: string;
+  city: string;
   year_of_study: number | null;
   updated_at?: string;
 }
@@ -49,6 +52,11 @@ export interface EventView {
   rules: string;
   contact_email: string;
   location: string;
+  is_remote: boolean;
+  country: string;
+  state: string;
+  city: string;
+  merge_registration_submission: boolean;
   min_team_size: number;
   max_team_size: number;
   registration_opens_at: string | null;
@@ -69,6 +77,7 @@ export interface EventView {
   created_at: string;
   updated_at: string;
   form_fields?: FormField[];
+  submission_fields?: FormField[];
 }
 
 export interface FormField {
@@ -119,6 +128,7 @@ export interface Submission {
   repo_url: string;
   demo_url: string;
   file_url: string;
+  answers: Record<string, unknown>;
   status: "draft" | "submitted";
   created_at: string;
   updated_at: string;
@@ -130,6 +140,15 @@ export interface TeamMember {
   full_name: string;
   joined_at: string;
   is_owner: boolean;
+}
+
+export interface TeamInviteLink {
+  token: string;
+  team_id: string;
+  team_name: string;
+  event_id: string;
+  event_title: string;
+  created_at?: string;
 }
 
 export interface TeamInvite {
@@ -217,6 +236,7 @@ export interface JudgingSubmission {
   repo_url: string;
   demo_url: string;
   file_url: string;
+  answers: Record<string, unknown>;
   team_id: string | null;
   team_name?: string;
   creator_username: string;

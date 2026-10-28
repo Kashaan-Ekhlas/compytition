@@ -1009,6 +1009,11 @@ func reviewWarnings(r *Review, subs []Submission, judgeCount int) []string {
 	if r.CoverageMin < 2 && len(subs) > 2 {
 		warnings = append(warnings, "Some entries have fewer than two comparisons; their ranking is unstable.")
 	}
+	if len(subs) >= 50 && r.CoverageMax < 12 {
+		warnings = append(warnings, fmt.Sprintf(
+			"Each entry is compared about %d times. With %d entries, add judges so the top of the ranking is more reliable.",
+			r.CoverageMax, len(subs)))
+	}
 	low := []string{}
 	for _, j := range r.Judges {
 		if j.Comparisons >= 5 && j.Reliability < 0.6 {

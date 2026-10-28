@@ -91,11 +91,11 @@ func main() {
 	}
 
 	now := time.Now()
-	opens := now.Add(-48 * time.Hour)
-	closes := now.Add(14 * 24 * time.Hour)
-	starts := now.Add(21 * 24 * time.Hour)
-	ends := now.Add(23 * 24 * time.Hour)
-	deadline := now.Add(20 * 24 * time.Hour)
+	opens := now.Add(-14 * 24 * time.Hour)
+	closes := now.Add(-10 * 24 * time.Hour)
+	starts := now.Add(-7 * 24 * time.Hour)
+	ends := now.Add(-2 * 24 * time.Hour)
+	deadline := now.Add(-3 * 24 * time.Hour)
 	criteria, _ := json.Marshal([]map[string]string{
 		{"name": "Originality", "description": "Is the idea meaningfully new?"},
 		{"name": "Craft", "description": "Is the implementation or design considered?"},
@@ -185,6 +185,7 @@ func main() {
 			Title: person.Title, Description: person.Pitch, Status: "submitted",
 			RepoUrl: "https://example.com/" + person.Username + "/repo",
 			DemoUrl: "https://example.com/" + person.Username + "/demo",
+			Answers: []byte(`{}`),
 		})
 		if err != nil {
 			slog.Error("create submission", "error", err)

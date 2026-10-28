@@ -87,3 +87,21 @@ func TestReliabilityIncludesAcceptedJudgesWithNoJudgments(t *testing.T) {
 		t.Fatalf("expected contact details to be preserved, got %+v", found)
 	}
 }
+
+func TestReviewWarnsWhenLargeEventCoverageIsSparse(t *testing.T) {
+	subs := make([]Submission, 300)
+	for i := range subs {
+		subs[i] = Submission{ID: uuid.New()}
+	}
+	review := &Review{CoverageMin: 8, CoverageMax: 8}
+	got := reviewWarnings(review, subs, 3)
+	found := false
+	for _, warning := range got {
+		if warning == "Each entry is compared about 8 times. With 300 entries, add judges so the top of the ranking is more reliable." {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected a sparse-coverage warning, got %v", got)
+	}
+}

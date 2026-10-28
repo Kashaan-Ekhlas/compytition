@@ -132,7 +132,7 @@ export default function ManageEventPage() {
 
       <div className="mt-6">
         {tab === "overview" ? <TabOverview event={event} onReload={load} /> : null}
-        {tab === "form" ? <TabForm eventId={event.id} /> : null}
+        {tab === "form" ? <TabForm event={event} /> : null}
         {tab === "participants" ? <TabParticipants eventId={event.id} /> : null}
         {tab === "submissions" ? <TabSubmissions eventId={event.id} /> : null}
         {tab === "judges" ? <TabJudges eventId={event.id} /> : null}

@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth, useRequireAuth } from "@/components/auth-provider";
-import type { EventView, JudgingNext, JudgingSubmission } from "@/lib/types";
+import type { EventView, FormField, JudgingNext, JudgingSubmission } from "@/lib/types";
+import { SubmissionAnswers } from "@/components/forms/submission-answers";
 import { Alert, LoadingBlock, Progress } from "@/components/ui/feedback";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -19,6 +20,7 @@ export default function JudgeEventPage() {
   const { loading: authLoading } = useRequireAuth();
 
   const [event, setEvent] = useState<EventView | null>(null);
+  const [formFields, setFormFields] = useState<FormField[]>([]);
   const [next, setNext] = useState<JudgingNext | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -37,8 +39,14 @@ export default function JudgeEventPage() {
     setLoading(true);
     setError(null);
     try {
-      const eventData = await api<{ event: EventView }>(`/events/${eventId}`);
+      const [eventData, formData] = await Promise.all([
+        api<{ event: EventView }>(`/events/${eventId}`),
+        api<{ fields: FormField[] }>(`/events/${eventId}/form`, {
+          query: { kind: "submission" },
+        }),
+      ]);
       setEvent(eventData.event);
+      setFormFields(formData.fields ?? []);
       if (eventData.event.judging_status === "live") {
         await fetchNext();
       } else {
@@ -211,6 +219,7 @@ export default function JudgeEventPage() {
               label="ENTRY 1"
               shortcut="1"
               submission={left}
+              fields={formFields}
               onPick={() => void decide(leftWinner)}
               disabled={busy}
             />
@@ -218,6 +227,7 @@ export default function JudgeEventPage() {
               label="ENTRY 2"
               shortcut="2"
               submission={right}
+              fields={formFields}
               onPick={() => void decide(rightWinner)}
               disabled={busy}
             />
@@ -320,12 +330,14 @@ function SubmissionPanel({
   label,
   shortcut,
   submission,
+  fields,
   onPick,
   disabled,
 }: {
   label: string;
   shortcut: string;
   submission: JudgingSubmission;
+  fields: FormField[];
   onPick: () => void;
   disabled: boolean;
 }) {
@@ -378,6 +390,11 @@ function SubmissionPanel({
             </a>
           ) : null}
         </div>
+        <SubmissionAnswers
+          fields={fields}
+          answers={submission.answers}
+          className="mt-4 border-t-2 border-ink/20 pt-3"
+        />
         <div className="mt-4 flex-1" />
         <Button className="mt-4 w-full" size="lg" onClick={onPick} disabled={disabled}>
           Choose this entry

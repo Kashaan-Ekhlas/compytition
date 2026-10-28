@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { api, errorMessage } from "@/lib/api";
-import type { Submission } from "@/lib/types";
+import type { FormField, Submission } from "@/lib/types";
+import { SubmissionAnswers } from "@/components/forms/submission-answers";
 import { Alert, LoadingBlock } from "@/components/ui/feedback";
 import { Badge, statusTone } from "@/components/ui/badge";
 import { Select } from "@/components/ui/input";
@@ -11,6 +12,7 @@ import { formatDate, statusLabel } from "@/lib/utils";
 
 export function TabSubmissions({ eventId }: { eventId: string }) {
   const [rows, setRows] = useState<Submission[]>([]);
+  const [formFields, setFormFields] = useState<FormField[]>([]);
   const [filter, setFilter] = useState("");
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -20,12 +22,18 @@ export function TabSubmissions({ eventId }: { eventId: string }) {
     setLoading(true);
     setError(null);
     try {
-      const data = await api<{ submissions: Submission[]; total: number }>(
-        `/events/${eventId}/submissions`,
-        { query: { status: filter, limit: 200 } },
-      );
+      const [data, formData] = await Promise.all([
+        api<{ submissions: Submission[]; total: number }>(
+          `/events/${eventId}/submissions`,
+          { query: { status: filter, limit: 200 } },
+        ),
+        api<{ fields: FormField[] }>(`/events/${eventId}/form`, {
+          query: { kind: "submission" },
+        }),
+      ]);
       setRows(data.submissions ?? []);
       setTotal(data.total ?? 0);
+      setFormFields(formData.fields ?? []);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -89,6 +97,11 @@ export function TabSubmissions({ eventId }: { eventId: string }) {
               {submission.description ? (
                 <p className="mt-2 line-clamp-3 text-base text-muted">{submission.description}</p>
               ) : null}
+              <SubmissionAnswers
+                fields={formFields}
+                answers={submission.answers}
+                className="mt-3 border-t-2 border-ink/20 pt-3"
+              />
               <div className="mt-3 flex flex-wrap gap-2">
                 {submission.repo_url ? (
                   <a

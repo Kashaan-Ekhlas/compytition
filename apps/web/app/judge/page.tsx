@@ -71,7 +71,7 @@ export default function JudgeHomePage() {
           <p className="font-pixel text-sm text-muted">JUDGE</p>
           <h1 className="mt-1 font-pixel text-3xl sm:text-4xl">YOUR JUDGING QUEUE</h1>
           <p className="mt-2 max-w-reading text-base text-muted">
-            Compare two entries at a time. Pick the stronger one — no scores, no weights, no tie-breaking
+            Compare two entries at a time. Pick the stronger one - no scores, no weights, no tie-breaking
             spreadsheets.
           </p>
         </div>

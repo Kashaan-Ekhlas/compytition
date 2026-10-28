@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, fieldErrors } from "@/lib/api";
-import type { FormField } from "@/lib/types";
+import type { EventView, FormField } from "@/lib/types";
 import { Alert, LoadingBlock } from "@/components/ui/feedback";
 import { Button } from "@/components/ui/button";
 import { Checkbox, Field, Input, Select } from "@/components/ui/input";
@@ -39,7 +39,9 @@ function toDraft(field: FormField, index: number): DraftField {
 
 let counter = 0;
 
-export function TabForm({ eventId }: { eventId: string }) {
+export function TabForm({ event }: { event: EventView }) {
+  const eventId = event.id;
+  const [kind, setKind] = useState<"registration" | "submission">("registration");
   const [fields, setFields] = useState<DraftField[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -51,14 +53,16 @@ export function TabForm({ eventId }: { eventId: string }) {
     setLoading(true);
     setError(null);
     try {
-      const data = await api<{ fields: FormField[] }>(`/events/${eventId}/form`);
+      const data = await api<{ fields: FormField[] }>(`/events/${eventId}/form`, {
+        query: { kind },
+      });
       setFields((data.fields ?? []).map(toDraft));
     } catch (err) {
       setError(errorMessage(err));
     } finally {
       setLoading(false);
     }
-  }, [eventId]);
+  }, [eventId, kind]);
 
   useEffect(() => {
     void load();
@@ -122,10 +126,10 @@ export function TabForm({ eventId }: { eventId: string }) {
       };
       const data = await api<{ fields: FormField[] }>(`/events/${eventId}/form`, {
         method: "PUT",
-        body: payload,
+        body: { ...payload, kind },
       });
       setFields((data.fields ?? []).map(toDraft));
-      setNotice("Registration form saved.");
+      setNotice(kind === "registration" ? "Registration form saved." : "Submission form saved.");
     } catch (err) {
       setError(errorMessage(err));
       setValidation(fieldErrors(err));
@@ -140,16 +144,44 @@ export function TabForm({ eventId }: { eventId: string }) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="font-pixel text-2xl">REGISTRATION FORM</h2>
+          <h2 className="font-pixel text-2xl">
+            {kind === "registration" ? "REGISTRATION FORM" : "SUBMISSION FORM"}
+          </h2>
           <p className="mt-1 max-w-reading text-base text-muted">
-            These questions are added after the profile autofill. Profile fields (name, college, course,
-            email) are always collected automatically.
+            {kind === "registration"
+              ? "These questions are added after the profile autofill. Profile fields (name, college, course, email) are always collected automatically."
+              : "Extra questions for the work itself. Title, description and links are always part of a submission."}
           </p>
         </div>
         <Button variant="secondary" onClick={addField} disabled={fields.length >= 30}>
           Add field
         </Button>
       </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant={kind === "registration" ? "primary" : "secondary"}
+          size="sm"
+          onClick={() => setKind("registration")}
+        >
+          Registration questions
+        </Button>
+        <Button
+          type="button"
+          variant={kind === "submission" ? "primary" : "secondary"}
+          size="sm"
+          onClick={() => setKind("submission")}
+        >
+          Submission questions
+        </Button>
+      </div>
+      {event.merge_registration_submission ? (
+        <Alert tone="info">
+          Forms are merged. Submission questions appear on the registration form, so participants do not
+          fill a second form later.
+        </Alert>
+      ) : null}
 
       {error ? <Alert tone="danger">{error}</Alert> : null}
       {notice ? <Alert tone="success">{notice}</Alert> : null}
@@ -195,7 +227,7 @@ export function TabForm({ eventId }: { eventId: string }) {
                     </Button>
                     <Button
                       size="sm"
-                      variant="ghost"
+                      variant="destructive"
                       onClick={() =>
                         setFields((current) => current.filter((_, position) => position !== index))
                       }

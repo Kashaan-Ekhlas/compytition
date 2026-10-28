@@ -6,6 +6,8 @@ import type { Criterion, EventView } from "@/lib/types";
 import { Alert } from "@/components/ui/feedback";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
+import { useAuth } from "@/components/auth-provider";
+import { Checkbox } from "@/components/ui/input";
 import { fromDateTimeInput, toDateTimeInput } from "@/lib/utils";
 
 const categories = ["Hackathon", "Competition", "Contest", "Workshop", "Other"];
@@ -24,6 +26,7 @@ export function EventForm({
   initial?: EventView;
   onSaved: (event: EventView) => void;
 }) {
+  const { user } = useAuth();
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [category, setCategory] = useState(initial?.category ?? "Hackathon");
@@ -31,8 +34,11 @@ export function EventForm({
   const [eligibility, setEligibility] = useState(initial?.eligibility ?? "");
   const [rules, setRules] = useState(initial?.rules ?? "");
   const [contactEmail, setContactEmail] = useState(initial?.contact_email ?? "");
-  const [location, setLocation] = useState(initial?.location ?? "Online");
-  const [minTeamSize, setMinTeamSize] = useState(String(initial?.min_team_size ?? 1));
+  const [isRemote, setIsRemote] = useState(initial?.is_remote ?? true);
+  const [country, setCountry] = useState(initial?.country ?? "");
+  const [state, setState] = useState(initial?.state ?? "");
+  const [city, setCity] = useState(initial?.city ?? "");
+  const [mergeForms, setMergeForms] = useState(initial?.merge_registration_submission ?? false);
   const [maxTeamSize, setMaxTeamSize] = useState(String(initial?.max_team_size ?? 4));
   const [registrationOpens, setRegistrationOpens] = useState(
     toDateTimeInput(initial?.registration_opens_at),
@@ -80,8 +86,12 @@ export function EventForm({
         eligibility,
         rules,
         contact_email: contactEmail,
-        location,
-        min_team_size: individual ? 1 : Number(minTeamSize),
+        is_remote: isRemote,
+        country: isRemote ? "" : country,
+        state: isRemote ? "" : state,
+        city: isRemote ? "" : city,
+        merge_registration_submission: mergeForms,
+        min_team_size: 1,
         max_team_size: individual ? 1 : Number(maxTeamSize),
         registration_opens_at: fromDateTimeInput(registrationOpens),
         registration_closes_at: fromDateTimeInput(registrationCloses),
@@ -153,24 +163,78 @@ export function EventForm({
           </Field>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Location" htmlFor="location" error={fields.location}>
-            <Input
-              id="location"
-              value={location}
-              onChange={(event) => setLocation(event.target.value)}
-              placeholder="Online"
-            />
+          <Field label="Where is it?" htmlFor="mode" error={fields.location}>
+            <Select
+              id="mode"
+              value={isRemote ? "remote" : "in-person"}
+              onChange={(event) => setIsRemote(event.target.value === "remote")}
+            >
+              <option value="remote">Remote / Online</option>
+              <option value="in-person">In person</option>
+            </Select>
           </Field>
-          <Field label="Contact email" htmlFor="contact_email" error={fields.contact_email}>
-            <Input
-              id="contact_email"
-              type="email"
-              value={contactEmail}
-              onChange={(event) => setContactEmail(event.target.value)}
-              placeholder="organizer@college.edu"
-            />
+          <Field
+            label="Contact email"
+            htmlFor="contact_email"
+            error={fields.contact_email}
+            hint={user ? "Your account email is the default contact." : undefined}
+          >
+            <div className="flex gap-2">
+              <Input
+                id="contact_email"
+                type="email"
+                value={contactEmail}
+                onChange={(event) => setContactEmail(event.target.value)}
+                placeholder="organizer@college.edu"
+              />
+              {user ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="shrink-0 px-3"
+                  onClick={() => setContactEmail(user.email)}
+                >
+                  Use mine
+                </Button>
+              ) : null}
+            </div>
           </Field>
         </div>
+        {!isRemote ? (
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label="Country" htmlFor="country" error={fields.country}>
+              <Input
+                id="country"
+                value={country}
+                onChange={(event) => setCountry(event.target.value)}
+                placeholder="India"
+                autoComplete="country-name"
+              />
+            </Field>
+            <Field label="State or region" htmlFor="state" error={fields.state}>
+              <Input
+                id="state"
+                value={state}
+                onChange={(event) => setState(event.target.value)}
+                placeholder="Telangana"
+                autoComplete="address-level1"
+              />
+            </Field>
+            <Field label="City" htmlFor="city" error={fields.city}>
+              <Input
+                id="city"
+                value={city}
+                onChange={(event) => setCity(event.target.value)}
+                placeholder="Hyderabad"
+                autoComplete="address-level2"
+              />
+            </Field>
+          </div>
+        ) : (
+          <p className="text-sm text-muted">
+            Remote events show as online and can be searched from anywhere.
+          </p>
+        )}
       </fieldset>
 
       <div className="pixel-divider" />
@@ -230,30 +294,35 @@ export function EventForm({
 
       <fieldset className="space-y-4">
         <legend className="mb-2 font-pixel text-lg">TEAMS</legend>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Minimum team size" htmlFor="min_team_size" error={fields.min_team_size}>
-            <Input
-              id="min_team_size"
-              type="number"
-              min={1}
-              max={64}
-              value={format === "individual" ? "1" : minTeamSize}
-              disabled={format === "individual"}
-              onChange={(event) => setMinTeamSize(event.target.value)}
-            />
-          </Field>
-          <Field label="Maximum team size" htmlFor="max_team_size" error={fields.max_team_size}>
-            <Input
-              id="max_team_size"
-              type="number"
-              min={1}
-              max={64}
-              value={format === "individual" ? "1" : maxTeamSize}
-              disabled={format === "individual"}
-              onChange={(event) => setMaxTeamSize(event.target.value)}
-            />
-          </Field>
-        </div>
+        <Field
+          label="Maximum team size"
+          htmlFor="max_team_size"
+          error={fields.max_team_size}
+          hint="Teams can be any size up to this limit."
+        >
+          <Input
+            id="max_team_size"
+            type="number"
+            min={1}
+            max={64}
+            value={format === "individual" ? "1" : maxTeamSize}
+            disabled={format === "individual"}
+            onChange={(event) => setMaxTeamSize(event.target.value)}
+          />
+        </Field>
+        <label className="flex items-start gap-3 border-2 border-ink bg-bg/40 p-3">
+          <Checkbox
+            checked={mergeForms}
+            onChange={(event) => setMergeForms(event.target.checked)}
+          />
+          <span>
+            <span className="block text-base font-semibold">Merge registration and submission forms</span>
+            <span className="block text-sm text-muted">
+              Participants answer submission questions while they register, so there is no separate
+              submission step.
+            </span>
+          </span>
+        </label>
       </fieldset>
 
       <div className="pixel-divider" />
@@ -328,7 +397,7 @@ export function EventForm({
                 <Button
                   type="button"
                   size="sm"
-                  variant="ghost"
+                  variant="destructive"
                   onClick={() => removeCriterion(index)}
                   aria-label={`Remove criterion ${index + 1}`}
                 >

@@ -10,6 +10,7 @@ import { Badge, statusTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { WindowCard } from "@/components/ui/card";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { formatDate, statusLabel } from "@/lib/utils";
 
 const years = [1, 2, 3, 4, 5, 6, 7, 8];
@@ -21,6 +22,9 @@ export default function SettingsPage() {
   const [fullName, setFullName] = useState("");
   const [college, setCollege] = useState("");
   const [course, setCourse] = useState("");
+  const [country, setCountry] = useState("");
+  const [state, setState] = useState("");
+  const [city, setCity] = useState("");
   const [year, setYear] = useState("");
   const [username, setUsername] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
@@ -45,6 +49,9 @@ export default function SettingsPage() {
     setFullName(profile.full_name ?? "");
     setCollege(profile.college ?? "");
     setCourse(profile.course ?? "");
+    setCountry(profile.country ?? "");
+    setState(profile.state ?? "");
+    setCity(profile.city ?? "");
     setYear(profile.year_of_study ? String(profile.year_of_study) : "");
   }, [profile]);
 
@@ -84,6 +91,9 @@ export default function SettingsPage() {
           full_name: fullName,
           college,
           course,
+          country,
+          state,
+          city,
           year_of_study: year ? Number(year) : null,
         },
       });
@@ -143,7 +153,7 @@ export default function SettingsPage() {
       await api("/feedback", { method: "POST", body: { subject, body: feedbackBody } });
       setSubject("");
       setFeedbackBody("");
-      finish("feedback", "Thanks — we read every note.");
+      finish("feedback", "Thanks - we read every note.");
     } catch (err) {
       setError(errorMessage(err));
       setFields(fieldErrors(err));
@@ -230,8 +240,34 @@ export default function SettingsPage() {
                 </Select>
               </Field>
             </div>
+            <fieldset className="grid gap-4 sm:grid-cols-3">
+              <Field label="Country" htmlFor="country" error={fields.location}>
+                <Input
+                  id="country"
+                  value={country}
+                  onChange={(event) => setCountry(event.target.value)}
+                  autoComplete="country-name"
+                />
+              </Field>
+              <Field label="State or region" htmlFor="state">
+                <Input
+                  id="state"
+                  value={state}
+                  onChange={(event) => setState(event.target.value)}
+                  autoComplete="address-level1"
+                />
+              </Field>
+              <Field label="City" htmlFor="city">
+                <Input
+                  id="city"
+                  value={city}
+                  onChange={(event) => setCity(event.target.value)}
+                  autoComplete="address-level2"
+                />
+              </Field>
+            </fieldset>
             <p className="text-sm text-muted">
-              These values autofill registration forms. Event submissions never expose them publicly.
+              These values autofill registration forms and power location search. Event submissions never expose them publicly.
             </p>
             <Button type="submit" disabled={busy !== null}>
               {busy === "profile" ? "Saving…" : "Save profile"}
@@ -263,9 +299,8 @@ export default function SettingsPage() {
         <WindowCard title="PASSWORD">
           <form className="space-y-4 p-5" onSubmit={savePassword} noValidate>
             <Field label="Current password" htmlFor="current_password" error={fields.current_password}>
-              <Input
+              <PasswordInput
                 id="current_password"
-                type="password"
                 value={currentPassword}
                 onChange={(event) => setCurrentPassword(event.target.value)}
                 autoComplete="current-password"
@@ -273,18 +308,16 @@ export default function SettingsPage() {
             </Field>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="New password" htmlFor="new_password" error={fields.new_password}>
-                <Input
+                <PasswordInput
                   id="new_password"
-                  type="password"
                   value={newPassword}
                   onChange={(event) => setNewPassword(event.target.value)}
                   autoComplete="new-password"
                 />
               </Field>
               <Field label="Confirm new password" htmlFor="confirm_password" error={fields.confirm_password}>
-                <Input
+                <PasswordInput
                   id="confirm_password"
-                  type="password"
                   value={confirmPassword}
                   onChange={(event) => setConfirmPassword(event.target.value)}
                   autoComplete="new-password"
@@ -323,7 +356,7 @@ export default function SettingsPage() {
                       <Badge tone={statusTone(bookmark.status)}>{statusLabel(bookmark.status)}</Badge>
                       <Button
                         size="sm"
-                        variant="ghost"
+                        variant="destructive"
                         onClick={() => void removeBookmark(bookmark)}
                         aria-label={`Remove bookmark for ${bookmark.title}`}
                       >
@@ -337,7 +370,8 @@ export default function SettingsPage() {
           </div>
         </WindowCard>
 
-        <WindowCard title="SEND FEEDBACK">
+        <WindowCard title="SEND FEEDBACK" className="scroll-mt-28" >
+          <div id="feedback" />
           <form className="space-y-4 p-5" onSubmit={sendFeedback} noValidate>
             <Field label="Subject" htmlFor="subject" error={fields.subject}>
               <Input

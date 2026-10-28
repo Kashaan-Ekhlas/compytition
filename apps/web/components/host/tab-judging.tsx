@@ -137,6 +137,12 @@ export function TabJudging({
 
   if (loading) return <LoadingBlock label="Loading judging" />;
 
+  const submissionDeadline = event.submission_deadline ? new Date(event.submission_deadline) : null;
+  const deadlinePassed = Boolean(submissionDeadline && submissionDeadline.getTime() <= Date.now());
+  const deadlineLabel = submissionDeadline
+    ? submissionDeadline.toLocaleString()
+    : "not set";
+
   const titleById = new Map<string, string>();
   for (const submission of preview?.submissions ?? []) {
     titleById.set(submission.id, submission.title);
@@ -166,6 +172,12 @@ export function TabJudging({
 
       {error ? <Alert tone="danger">{error}</Alert> : null}
       {notice ? <Alert tone="success">{notice}</Alert> : null}
+
+      <Alert tone={deadlinePassed ? "success" : "info"}>
+        Judging settings are derived from {event.submission_count} submission
+        {event.submission_count === 1 ? "" : "s"} and the accepted judges. Comparisons can start after the
+        submission deadline ({deadlineLabel}).
+      </Alert>
 
       {review ? (
         <WindowCard title="COMPARISON PROGRESS">
@@ -278,16 +290,23 @@ export function TabJudging({
             )}
 
             <div className="flex flex-wrap gap-2 border-t-2 border-ink/20 pt-4">
-              <Button variant="secondary" onClick={() => void assign()} disabled={busy !== null}>
+              <Button
+                variant="secondary"
+                onClick={() => void assign()}
+                disabled={busy !== null || !deadlinePassed}
+                title={!deadlinePassed ? "Judging opens after the submission deadline." : undefined}
+              >
                 {busy === "assign" ? "Generating…" : "Generate comparisons"}
               </Button>
               <Button
                 onClick={() => void start()}
-                disabled={busy !== null || (review?.total_pairs ?? 0) === 0}
+                disabled={busy !== null || (review?.total_pairs ?? 0) === 0 || !deadlinePassed}
                 title={
-                  (review?.total_pairs ?? 0) === 0
-                    ? "Generate comparisons first."
-                    : undefined
+                  !deadlinePassed
+                    ? "Judging opens after the submission deadline."
+                    : (review?.total_pairs ?? 0) === 0
+                      ? "Generate comparisons first."
+                      : undefined
                 }
               >
                 {busy === "start" ? "Starting…" : "Start judging"}

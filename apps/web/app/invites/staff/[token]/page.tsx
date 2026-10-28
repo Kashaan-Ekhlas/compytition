@@ -23,6 +23,14 @@ export default function AcceptStaffInvitePage() {
     setError(null);
   }, [params.token]);
 
+  // Existing accounts accept immediately. New accounts return to this page
+  // after registration, which runs the same effect.
+  useEffect(() => {
+    if (user && !result && !busy && !error) {
+      void accept();
+    }
+  }, [user, result, busy, error]);
+
   async function accept() {
     setBusy(true);
     setError(null);

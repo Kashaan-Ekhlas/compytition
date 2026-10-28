@@ -103,16 +103,21 @@ export function TabJudges({ eventId }: { eventId: string }) {
         <form className="space-y-4 p-5" onSubmit={invite} noValidate>
           <p className="text-base text-muted">
             Judges compare submissions. Co-organizers can manage the event but do not judge unless also
-            invited as a judge. The invitee must sign in with the same email address.
+            invited as a judge. Existing accounts join immediately. If the account does not exist yet,
+            the invite link works after they sign up.
           </p>
           <div className="grid gap-4 sm:grid-cols-[1fr_200px_auto] sm:items-end">
-            <Field label="Email" htmlFor="staff-email" error={fields.email}>
+            <Field
+              label="Email or username"
+              htmlFor="staff-email"
+              error={fields.email ?? fields.username}
+              hint="Type an email address or an existing username."
+            >
               <Input
                 id="staff-email"
-                type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="judge@college.edu"
+                placeholder="judge@college.edu or @username"
               />
             </Field>
             <Field label="Role" htmlFor="staff-role">
@@ -121,8 +126,8 @@ export function TabJudges({ eventId }: { eventId: string }) {
                 <option value="co_organizer">Co-organizer</option>
               </Select>
             </Field>
-            <Button type="submit" disabled={busy !== null || email.trim().length < 3}>
-              {busy === "invite" ? "Inviting…" : "Send invite"}
+            <Button type="submit" disabled={busy !== null || email.trim().length < 2}>
+              {busy === "invite" ? "Inviting…" : "Invite"}
             </Button>
           </div>
         </form>

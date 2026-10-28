@@ -27,6 +27,24 @@ export function NotificationsMenu({ initialUnread = 0 }: { initialUnread?: numbe
     }
   }, []);
 
+  // Keep the badge fresh without requiring the menu to be opened. The short
+  // interval makes new invites and results feel immediate; a focus refresh
+  // catches anything that arrived while the tab was in the background.
+  useEffect(() => {
+    void load();
+    const timer = window.setInterval(() => void load(), 5000);
+    function refresh() {
+      if (document.visibilityState === "visible") void load();
+    }
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [load]);
+
   useEffect(() => {
     if (!open) return;
     void load();
@@ -62,7 +80,12 @@ export function NotificationsMenu({ initialUnread = 0 }: { initialUnread?: numbe
         aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`}
         aria-expanded={open}
       >
-        <span aria-hidden="true">✦</span>
+        <span aria-hidden="true">
+          <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
+            <path d="M10 21h4" />
+          </svg>
+        </span>
         {unread > 0 ? (
           <span className="absolute -right-2 -top-2 flex h-6 min-w-6 items-center justify-center border-2 border-ink bg-accent-2 px-1 font-mono text-xs font-bold text-white">
             {unread > 9 ? "9+" : unread}
@@ -78,7 +101,9 @@ export function NotificationsMenu({ initialUnread = 0 }: { initialUnread?: numbe
             </Button>
           </div>
           <div className="max-h-96 overflow-y-auto">
-            {loading ? <p className="p-4 text-base text-muted">Loading…</p> : null}
+            {loading && items.length === 0 ? (
+              <p className="p-4 text-base text-muted">Loading…</p>
+            ) : null}
             {!loading && items.length === 0 ? (
               <p className="p-4 text-base text-muted">Nothing here yet.</p>
             ) : null}

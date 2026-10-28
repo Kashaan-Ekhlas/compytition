@@ -37,6 +37,7 @@ Severity reflects user impact: **High** = data loss, security bypass, or broken 
 | 25 | Low | Notifications | The 5-second poll set loading state and briefly replaced the open list with "Loading…" on every tick. | Fixed |
 | 26 | Low | Tests | `TestDisagreementsGroupJudgesAcrossPairRows` used random UUIDs, so it failed about half the time when the canonical order flipped. | Fixed |
 | 27 | Medium | Web auth | The Google buttons always redirected to `/dashboard` or `/onboarding` and dropped `?next=`, so staff/team invite links never returned to the invite for Google signups. | Fixed |
+| 28 | High | Seed / CI | `go run ./cmd/seed` inserted submissions without `answers`, violating the new NOT NULL column, and the seed event's future deadline now blocked derived judging. CI failed at the seed step. | Fixed |
 
 ## Details
 
@@ -210,6 +211,14 @@ The password flows carried `next` through login, registration, and onboarding, b
 
 **Files:** `app/(auth)/login/page.tsx`, `app/(auth)/register/page.tsx`.
 
+### 28. CI seed failed on the new submission column and deadline gate (High)
+
+The CI workflow runs `go run ./cmd/seed` against a fresh database. The seed called `CreateSubmission` without `answers`, so the generated insert sent `NULL` to the new `NOT NULL` column and failed with SQLSTATE 23502. With that fixed, the seed still failed at `judging.Assign` because the demo event's submission deadline was 20 days in the future and derived judging is now blocked until the deadline passes.
+
+**Fix:** the seed passes `{}` for `answers`, and the demo event is now a recently finished event (registration closed 10 days ago, submissions closed 3 days ago) so pre-judging and publishing match its published results.
+
+**Files:** `cmd/seed/main.go`.
+
 ## Verification
 
 Run after the fixes:
@@ -252,6 +261,19 @@ The API and web images were rebuilt and exercised against the seeded database th
 
 Smoke-test events and accounts were removed from the database afterwards; the seed event is unchanged.
 
+### 300-entry stress test (2026-10-29)
+
+The full competitor path was also exercised at scale through the HTTP API, not just the UI:
+
+- Created a published remote event, 310 accounts, and 5 teams of three using the team invite link (existing accounts auto-joined).
+- Registered 310 participants (5 team registrations plus 295 solo), then created 300 submissions: 295 solo and 5 team entries.
+- Added the three seeded judges by email, moved the deadline into the past, assigned 1,200 pairs (8 comparisons per entry), started judging, and recorded all 1,200 comparisons. Judge accuracy was simulated at 0.92, 0.78 and 0.58 against a known latent quality order.
+- Review showed 1,200 done, 0 pending, 5 split decisions, and a sparse-coverage warning.
+- CrowdBT ranking quality: Spearman 0.68, Kendall tau 0.48 against the known order. The winning entry was not the latent best. Reliability put the noisiest judge last (0.733 vs 0.748 and 0.756) but did not clearly separate the two better judges, and confidence was about 50% for most entries.
+- Publishing wrote 300 result rows and the public results page rendered them.
+
+The model itself is sound (isolated simulation with the same counts recovers the order and separates reliability), but 8 comparisons per entry is too sparse to resolve the top of a 300-entry field. The review now warns organizers about this and recommends adding judges. The test event remains at `/events/f07f577f-2ee2-4330-9db0-ce5e5f0772a8` for inspection.
+
 ## Remaining Risks / Not Changed
 
 These are real but were outside this review's fix scope or need a product decision:
@@ -265,3 +287,4 @@ These are real but were outside this review's fix scope or need a product decisi
 7. **Notification polling.** Five-second polling is simple and works across instances, but it keeps making requests on idle tabs. A shared SSE/WebSocket channel or a longer interval after inactivity would scale better.
 8. **Split-decision pair ID.** `disagreements[].pair_id` is a representative ID, not an identifier shared by all judges. The UI only uses it as a React key, but future API consumers should use `title_a`/`title_b` or winner counts.
 9. **Stored judging config GET.** `GET /events/{id}/judging-config` still returns the stored legacy JSON, while preview/assign derive the effective values from counts and the deadline. The web app does not read it; either derive it there too or remove the route.
+10. **Sparse coverage on large events.** For events over 20 entries the derived plan targets 8 comparisons per entry, which is enough for a coarse global order but not for a reliable top ten. The 300-entry stress test scored Kendall tau 0.48 and a ~50% winner confidence. Scale coverage with the entry count or recommend more judges before publishing.

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth, useRequireAuth } from "@/components/auth-provider";
-import type { EventView, JoinRequest, Team, TeamInvite } from "@/lib/types";
+import type { EventView, JoinRequest, Team, TeamInvite, TeamInviteLink } from "@/lib/types";
 import { Alert, LoadingBlock } from "@/components/ui/feedback";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -31,6 +31,7 @@ export default function TeamPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
   const [inviteUsername, setInviteUsername] = useState("");
+  const [inviteLink, setInviteLink] = useState<TeamInviteLink | null>(null);
   const [joinMessage, setJoinMessage] = useState("");
   const [editName, setEditName] = useState("");
   const [looking, setLooking] = useState(false);
@@ -104,7 +105,7 @@ export default function TeamPage() {
     return (
       <div className="mx-auto max-w-reading px-4 py-12">
         <Alert tone="warning" title="This event is individual-only">
-          No team needed — head back and register as yourself.
+          No team needed - head back and register as yourself.
         </Alert>
         <Link href={`/events/${eventId}`} className={`${buttonVariants({ variant: "secondary" })} mt-4`}>
           Back to event
@@ -125,7 +126,8 @@ export default function TeamPage() {
           <p className="font-pixel text-sm text-muted">TEAMS</p>
           <h1 className="mt-1 font-pixel text-3xl">BUILD YOUR CREW</h1>
           <p className="mt-2 text-base text-muted">
-            Teams of {event.min_team_size}–{event.max_team_size}. Registering a team registers every current member.
+            Teams can have up to {event.max_team_size} members. Registering a team registers every current
+            member.
           </p>
         </div>
         <Badge tone="blue">{teams.length} TEAMS</Badge>
@@ -183,7 +185,7 @@ export default function TeamPage() {
                       </Button>
                       <Button
                         size="sm"
-                        variant="secondary"
+                        variant="destructive"
                         disabled={busy || (team.members?.length ?? 0) > 1}
                         onClick={() => {
                           if (!window.confirm("Dissolve this team? Your registration will be removed.")) return;
@@ -244,7 +246,55 @@ export default function TeamPage() {
                       </Button>
                     </div>
                   </Field>
-                  {full ? <p className="text-sm text-muted">Team is full — remove someone before inviting.</p> : null}
+                  {full ? <p className="text-sm text-muted">Team is full. Ask someone to leave before inviting.</p> : null}
+
+                  <div className="border-t-2 border-ink/20 pt-4">
+                    <h3 className="font-pixel text-base">INVITE LINK</h3>
+                    <p className="mt-1 text-sm text-muted">
+                      Share one link. People with an account join immediately; new people continue here
+                      after signing up.
+                    </p>
+                    {inviteLink ? (
+                      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                        <Input
+                          readOnly
+                          value={`${typeof window === "undefined" ? "" : window.location.origin}/invites/team/${inviteLink.token}`}
+                          aria-label="Team invite link"
+                          onFocus={(event) => event.target.select()}
+                        />
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => {
+                            const url = `${window.location.origin}/invites/team/${inviteLink.token}`;
+                            void navigator.clipboard
+                              .writeText(url)
+                              .then(() => setNotice("Invite link copied."))
+                              .catch(() => setError("Could not copy the link. Select it and copy manually."));
+                          }}
+                        >
+                          Copy
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        className="mt-3"
+                        size="sm"
+                        variant="secondary"
+                        disabled={busy}
+                        onClick={() =>
+                          void act("Invite link ready.", async () => {
+                            const data = await api<{ invite_link: TeamInviteLink }>(
+                              `/teams/${team.id}/invite-link`,
+                            );
+                            setInviteLink(data.invite_link);
+                          })
+                        }
+                      >
+                        Create invite link
+                      </Button>
+                    )}
+                  </div>
 
                   <div>
                     <h3 className="font-pixel text-base">PENDING INVITES</h3>
@@ -411,7 +461,7 @@ export default function TeamPage() {
                     </div>
                     <div className="mt-3">
                       {row.my_pending_invite ? (
-                        <p className="text-sm text-muted">You have an invite — accept it on the left.</p>
+                        <p className="text-sm text-muted">You have an invite - accept it on the left.</p>
                       ) : row.my_pending_request ? (
                         <p className="text-sm text-muted">Request sent. Hang tight.</p>
                       ) : row.member_count >= event.max_team_size ? (

@@ -63,6 +63,21 @@ export default function EventDetailPage() {
     void load();
   }, [load]);
 
+  async function shareEvent() {
+    if (!event) return;
+    const url = `${window.location.origin}/events/${id}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: event.title, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        setBookmarkNotice("Event link copied.");
+      }
+    } catch {
+      // The share sheet was dismissed. Nothing to report.
+    }
+  }
+
   async function toggleBookmark() {
     setBookmarkBusy(true);
     setBookmarkNotice(null);
@@ -161,14 +176,28 @@ export default function EventDetailPage() {
             ) : null}
             {user ? (
               <Button
-                variant="ghost"
+                variant={bookmarked ? "primary" : "secondary"}
+                size="lg"
                 onClick={() => void toggleBookmark()}
                 disabled={bookmarkBusy}
                 aria-pressed={bookmarked}
+                aria-label={bookmarked ? "Remove from saved events" : "Save this event"}
+                title={bookmarked ? "Remove from saved events" : "Save this event"}
               >
-                {bookmarkBusy ? "Saving…" : bookmarked ? "★ Saved" : "☆ Save"}
+                <BookmarkIcon filled={bookmarked} />
+                <span>{bookmarkBusy ? "Saving…" : bookmarked ? "Saved" : "Save"}</span>
               </Button>
             ) : null}
+            <Button
+              variant="secondary"
+              size="lg"
+              onClick={() => void shareEvent()}
+              aria-label="Share this event"
+              title="Share this event"
+            >
+              <ShareIcon />
+              <span>Share</span>
+            </Button>
           </div>
           {bookmarkNotice ? (
             <p className="mt-3 font-mono text-sm text-muted" role="status">
@@ -195,9 +224,9 @@ export default function EventDetailPage() {
             <Meta label="Submission deadline" value={formatDate(event.submission_deadline, true)} />
             <Meta label="Format" value={
               event.participation_format === "both"
-                ? `Solo or teams of ${event.min_team_size}–${event.max_team_size}`
+                ? `Solo or teams up to ${event.max_team_size}`
                 : event.participation_format === "team"
-                  ? `Teams of ${event.min_team_size}–${event.max_team_size}`
+                  ? `Teams up to ${event.max_team_size}`
                   : "Individual"
             } />
             <Meta label="Location" value={event.location || "Online"} />
@@ -259,7 +288,7 @@ export default function EventDetailPage() {
         <WindowCard title="REGISTRATION FORM">
           <div className="p-5">
             {fields.length === 0 ? (
-              <p className="text-base text-muted">This event has no extra questions — your profile is enough.</p>
+              <p className="text-base text-muted">This event has no extra questions - your profile is enough.</p>
             ) : (
               <ul className="space-y-2">
                 {fields.map((field) => (
@@ -307,7 +336,7 @@ export default function EventDetailPage() {
                       <span className="block font-semibold">{row.title}</span>
                       <span className="block font-mono text-sm text-muted">@{row.creator_username}</span>
                     </td>
-                    <td className="px-3 py-3 text-base">{row.team_name || "—"}</td>
+                    <td className="px-3 py-3 text-base">{row.team_name || "-"}</td>
                     <td className="px-3 py-3 font-mono">{row.score.toFixed(3)}</td>
                     <td className="px-3 py-3 font-mono">{Math.round(row.confidence * 100)}%</td>
                   </tr>
@@ -327,5 +356,32 @@ function Meta({ label, value }: { label: string; value: string }) {
       <dt className="font-mono text-xs uppercase tracking-wide text-muted">{label}</dt>
       <dd className="mt-0.5 text-base">{value}</dd>
     </div>
+  );
+}
+
+
+function BookmarkIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-6 w-6"
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <path d="M6 3h12v18l-6-4-6 4V3Z" />
+    </svg>
+  );
+}
+
+function ShareIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <path d="m8.6 10.6 6.8-4.2M8.6 13.4l6.8 4.2" />
+    </svg>
   );
 }

@@ -5,10 +5,11 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { api, errorMessage, fieldErrors } from "@/lib/api";
 import { useAuth, useRequireAuth } from "@/components/auth-provider";
-import type { EventView, Registration, Submission } from "@/lib/types";
+import type { EventView, FormField, Registration, Submission } from "@/lib/types";
 import { Alert, LoadingBlock } from "@/components/ui/feedback";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
+import { DynamicField } from "@/components/forms/dynamic-field";
 import { formatDate } from "@/lib/utils";
 
 export default function SubmitPage() {
@@ -27,6 +28,8 @@ export default function SubmitPage() {
     file_url: "",
     status: "submitted",
   });
+  const [formFields, setFormFields] = useState<FormField[]>([]);
+  const [answers, setAnswers] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,14 +39,28 @@ export default function SubmitPage() {
     if (!user) return;
     async function load() {
       try {
-        const [eventData, subData, regData] = await Promise.all([
+        const [eventData, subData, regData, formData] = await Promise.all([
           api<{ event: EventView }>(`/events/${params.id}`),
           api<{ submission: Submission | null }>(`/events/${params.id}/submissions/me`),
           api<{ registration: Registration | null }>(`/events/${params.id}/registrations/me`),
+          api<{ fields: FormField[] }>(`/events/${params.id}/form`, { query: { kind: "submission" } }),
         ]);
         setEvent(eventData.event);
         setSubmission(subData.submission);
         setRegistration(regData.registration);
+        const fields = formData.fields ?? [];
+        setFormFields(fields);
+        // Merged registration forms already collected the submission answers.
+        // Keep only real submission field IDs so stale registration keys are
+        // not posted back as unknown answers.
+        const fieldIDs = new Set(fields.map((field) => field.id));
+        const merged = {
+          ...(regData.registration?.answers ?? {}),
+          ...(subData.submission?.answers ?? {}),
+        };
+        setAnswers(
+          Object.fromEntries(Object.entries(merged).filter(([key]) => fieldIDs.has(key))),
+        );
         if (subData.submission) {
           const s = subData.submission;
           setForm({
@@ -70,10 +87,15 @@ export default function SubmitPage() {
     setFields({});
     setBusy(true);
     try {
+      const fieldIDs = new Set(formFields.map((field) => field.id));
+      const cleanAnswers = Object.fromEntries(
+        Object.entries(answers).filter(([key]) => fieldIDs.has(key)),
+      );
+      const body = { ...form, answers: cleanAnswers };
       if (submission) {
-        await api(`/submissions/${submission.id}`, { method: "PATCH", body: form });
+        await api(`/submissions/${submission.id}`, { method: "PATCH", body });
       } else {
-        await api(`/events/${params.id}/submissions`, { method: "POST", body: form });
+        await api(`/events/${params.id}/submissions`, { method: "POST", body });
       }
       router.push(`/events/${params.id}`);
     } catch (err) {
@@ -195,6 +217,22 @@ export default function SubmitPage() {
             </Select>
           </Field>
         </div>
+        {formFields.length > 0 ? (
+          <>
+            <div className="pixel-divider" />
+            {formFields.map((field) => (
+              <DynamicField
+                key={field.id}
+                field={field}
+                value={answers[field.id]}
+                error={fields[field.id]}
+                onChange={(value) =>
+                  setAnswers((current) => ({ ...current, [field.id]: value }))
+                }
+              />
+            ))}
+          </>
+        ) : null}
         <div className="flex flex-wrap items-center justify-between gap-3 border-t-2 border-ink pt-5">
           <Link href={`/events/${event.id}`} className="chunky-link font-mono text-sm">
             Cancel

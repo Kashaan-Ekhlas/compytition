@@ -9,6 +9,7 @@ import { Alert, LoadingBlock } from "@/components/ui/feedback";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/components/auth-provider";
 
 const PAGE_SIZE = 12;
 
@@ -19,14 +20,22 @@ const formats = [
   { value: "both", label: "Solo or team" },
 ];
 
+const modes = [
+  { value: "", label: "Anywhere" },
+  { value: "online", label: "Remote / Online" },
+  { value: "onsite", label: "In person" },
+];
+
 const statuses = [
   { value: "", label: "All" },
-  { value: "published", label: "Open" },
-  { value: "closed", label: "Closed" },
-  { value: "results_published", label: "Results out" },
+  { value: "upcoming", label: "Upcoming" },
+  { value: "open", label: "Registration open" },
+  { value: "closed", label: "Registration closed" },
+  { value: "ended", label: "Ended" },
 ];
 
 export default function EventsPage() {
+  const { profile } = useAuth();
   const [events, setEvents] = useState<EventView[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [total, setTotal] = useState(0);
@@ -35,6 +44,10 @@ export default function EventsPage() {
   const [category, setCategory] = useState("");
   const [format, setFormat] = useState("");
   const [status, setStatus] = useState("");
+  const [mode, setMode] = useState("");
+  const [country, setCountry] = useState("");
+  const [state, setState] = useState("");
+  const [city, setCity] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +66,10 @@ export default function EventsPage() {
       setError(null);
       try {
         const data = await api<{ events: EventView[]; total: number; categories: string[] }>("/events", {
-          query: { q: debounced, category, format, status, limit: PAGE_SIZE, offset },
+          query: {
+            q: debounced, category, format, status, mode, country, state, city,
+            limit: PAGE_SIZE, offset,
+          },
         });
         if (id !== request.current) return;
         setEvents((current) => (offset === 0 ? data.events : [...current, ...data.events]));
@@ -68,7 +84,7 @@ export default function EventsPage() {
         }
       }
     },
-    [debounced, category, format, status],
+    [debounced, category, format, status, mode, country, state, city],
   );
 
   useEffect(() => {
@@ -76,8 +92,8 @@ export default function EventsPage() {
   }, [load]);
 
   const activeFilters = useMemo(
-    () => [category, format, status, debounced].filter(Boolean).length,
-    [category, format, status, debounced],
+    () => [category, format, status, debounced, mode, country, state, city].filter(Boolean).length,
+    [category, format, status, debounced, mode, country, state, city],
   );
 
   return (
@@ -137,6 +153,80 @@ export default function EventsPage() {
             </div>
           </div>
         </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <Label htmlFor="mode">Where</Label>
+            <Select
+              id="mode"
+              value={mode}
+              onChange={(event) => {
+                const value = event.target.value;
+                setMode(value);
+                if (value === "online") {
+                  setCountry("");
+                  setState("");
+                  setCity("");
+                }
+              }}
+            >
+              {modes.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="country">Country</Label>
+            <Input
+              id="country"
+              value={country}
+              onChange={(event) => setCountry(event.target.value)}
+              placeholder="Any country"
+              disabled={mode === "online"}
+            />
+          </div>
+          <div>
+            <Label htmlFor="state">State or region</Label>
+            <Input
+              id="state"
+              value={state}
+              onChange={(event) => setState(event.target.value)}
+              placeholder="Any state"
+              disabled={mode === "online"}
+            />
+          </div>
+          <div>
+            <Label htmlFor="city">City</Label>
+            <Input
+              id="city"
+              value={city}
+              onChange={(event) => setCity(event.target.value)}
+              placeholder="Any city"
+              disabled={mode === "online"}
+            />
+          </div>
+        </div>
+        {profile && (profile.city || profile.state || profile.country) ? (
+          <div className="mt-3">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setMode("onsite");
+                setCountry(profile.country ?? "");
+                setState(profile.state ?? "");
+                setCity(profile.city ?? "");
+              }}
+            >
+              Use my location
+            </Button>
+            <span className="ml-3 font-mono text-sm text-muted">
+              {[profile.city, profile.state, profile.country].filter(Boolean).join(", ")}
+            </span>
+          </div>
+        ) : null}
         <div className="mt-3 flex items-center justify-between gap-2">
           <p className="font-mono text-sm text-muted">
             {loading ? "Searching…" : `${total} event${total === 1 ? "" : "s"}`}
@@ -151,6 +241,10 @@ export default function EventsPage() {
                 setCategory("");
                 setFormat("");
                 setStatus("");
+                setMode("");
+                setCountry("");
+                setState("");
+                setCity("");
               }}
             >
               Clear filters
@@ -172,7 +266,7 @@ export default function EventsPage() {
           <EmptyState
             title="NO EVENTS MATCH"
             action={
-              <Button variant="secondary" onClick={() => { setQuery(""); setCategory(""); setFormat(""); setStatus(""); }}>
+              <Button variant="secondary" onClick={() => { setQuery(""); setCategory(""); setFormat(""); setStatus(""); setMode(""); setCountry(""); setState(""); setCity(""); }}>
                 Reset filters
               </Button>
             }

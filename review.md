@@ -36,6 +36,7 @@ Severity reflects user impact: **High** = data loss, security bypass, or broken 
 | 24 | Low | Event UI | Event detail and organizer overview still displayed a minimum team size ("teams of 1-6") after the product moved to max-only team sizes. | Fixed |
 | 25 | Low | Notifications | The 5-second poll set loading state and briefly replaced the open list with "Loading…" on every tick. | Fixed |
 | 26 | Low | Tests | `TestDisagreementsGroupJudgesAcrossPairRows` used random UUIDs, so it failed about half the time when the canonical order flipped. | Fixed |
+| 27 | Medium | Web auth | The Google buttons always redirected to `/dashboard` or `/onboarding` and dropped `?next=`, so staff/team invite links never returned to the invite for Google signups. | Fixed |
 
 ## Details
 
@@ -200,6 +201,14 @@ The test created `subA` and `subB` with `uuid.New()`. `canonicalA` orders by UUI
 **Fix:** fixed UUIDs keep `subA` canonical.
 
 **Files:** `internal/judging/service_test.go`.
+
+### 27. Google OAuth dropped the invite destination (Medium)
+
+The password flows carried `next` through login, registration, and onboarding, but both Google buttons hard-coded `redirect=/dashboard` or `/onboarding`. A new user arriving from a staff or team invite and choosing Google landed on onboarding without a return path, so the invite was never auto-accepted.
+
+**Fix:** both buttons now pass the current safe `next` into the OAuth `redirect` parameter. Registration wraps the destination in `/onboarding?next=...`, matching the password signup path; login uses `next` when present and falls back to `/dashboard`.
+
+**Files:** `app/(auth)/login/page.tsx`, `app/(auth)/register/page.tsx`.
 
 ## Verification
 

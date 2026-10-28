@@ -71,7 +71,9 @@ function LoginForm() {
       </Button>
       {googleEnabled ? (
         <a
-          href="/api/v1/auth/google/start?redirect=/dashboard"
+          href={`/api/v1/auth/google/start?redirect=${encodeURIComponent(
+            safeNext(params.get("next"), "") || "/dashboard",
+          )}`}
           className={`${buttonVariants({ variant: "secondary" })} w-full`}
         >
           Continue with Google

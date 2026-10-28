@@ -28,6 +28,21 @@ function AuthSwitchFooter() {
   );
 }
 
+function GoogleSignUp({ enabled }: { enabled: boolean }) {
+  const params = useSearchParams();
+  const next = safeNext(params.get("next"), "");
+  const redirect = next ? `/onboarding?next=${encodeURIComponent(next)}` : "/onboarding";
+  if (!enabled) return null;
+  return (
+    <a
+      href={`/api/v1/auth/google/start?redirect=${encodeURIComponent(redirect)}`}
+      className={`${buttonVariants({ variant: "secondary" })} w-full`}
+    >
+      Sign up with Google
+    </a>
+  );
+}
+
 export default function RegisterPage() {
   const router = useRouter();
   const { refresh, googleEnabled } = useAuth();
@@ -123,12 +138,9 @@ export default function RegisterPage() {
           {busy ? "Creating…" : "Create account"}
         </Button>
         {googleEnabled ? (
-          <a
-            href="/api/v1/auth/google/start?redirect=/onboarding"
-            className={`${buttonVariants({ variant: "secondary" })} w-full`}
-          >
-            Sign up with Google
-          </a>
+          <Suspense fallback={null}>
+            <GoogleSignUp enabled={googleEnabled} />
+          </Suspense>
         ) : null}
         <p className="text-sm text-muted">
           By joining you agree to be a decent human in the chat.

@@ -83,66 +83,78 @@ INSERT INTO events (
     slug, organizer_id, title, description, category, participation_format,
     status, eligibility, rules, contact_email, location, min_team_size,
     max_team_size, registration_opens_at, registration_closes_at, starts_at,
-    ends_at, submission_deadline, criteria
+    ends_at, submission_deadline, criteria, is_remote, country, state, city,
+    merge_registration_submission
 ) VALUES (
     $1, $2, $3, $4, $5, $6, 'draft', $7, $8, $9, $10, $11, $12, $13, $14,
-    $15, $16, $17, $18
+    $15, $16, $17, $18, $19, $20, $21, $22, $23
 )
 RETURNING id, slug, organizer_id, title, description, category,
     participation_format, status, eligibility, rules, contact_email, location,
     min_team_size, max_team_size, registration_opens_at, registration_closes_at,
     starts_at, ends_at, submission_deadline, criteria, judging_config,
-    judging_status, judging_locked_at, results_published_at, created_at, updated_at
+    judging_status, judging_locked_at, results_published_at, created_at, updated_at,
+    is_remote, country, state, city, merge_registration_submission
 `
 
 type CreateEventParams struct {
-	Slug                 string     `json:"slug"`
-	OrganizerID          uuid.UUID  `json:"organizer_id"`
-	Title                string     `json:"title"`
-	Description          string     `json:"description"`
-	Category             string     `json:"category"`
-	ParticipationFormat  string     `json:"participation_format"`
-	Eligibility          string     `json:"eligibility"`
-	Rules                string     `json:"rules"`
-	ContactEmail         string     `json:"contact_email"`
-	Location             string     `json:"location"`
-	MinTeamSize          int16      `json:"min_team_size"`
-	MaxTeamSize          int16      `json:"max_team_size"`
-	RegistrationOpensAt  *time.Time `json:"registration_opens_at"`
-	RegistrationClosesAt *time.Time `json:"registration_closes_at"`
-	StartsAt             *time.Time `json:"starts_at"`
-	EndsAt               *time.Time `json:"ends_at"`
-	SubmissionDeadline   *time.Time `json:"submission_deadline"`
-	Criteria             []byte     `json:"criteria"`
+	Slug                        string     `json:"slug"`
+	OrganizerID                 uuid.UUID  `json:"organizer_id"`
+	Title                       string     `json:"title"`
+	Description                 string     `json:"description"`
+	Category                    string     `json:"category"`
+	ParticipationFormat         string     `json:"participation_format"`
+	Eligibility                 string     `json:"eligibility"`
+	Rules                       string     `json:"rules"`
+	ContactEmail                string     `json:"contact_email"`
+	Location                    string     `json:"location"`
+	MinTeamSize                 int16      `json:"min_team_size"`
+	MaxTeamSize                 int16      `json:"max_team_size"`
+	RegistrationOpensAt         *time.Time `json:"registration_opens_at"`
+	RegistrationClosesAt        *time.Time `json:"registration_closes_at"`
+	StartsAt                    *time.Time `json:"starts_at"`
+	EndsAt                      *time.Time `json:"ends_at"`
+	SubmissionDeadline          *time.Time `json:"submission_deadline"`
+	Criteria                    []byte     `json:"criteria"`
+	IsRemote                    bool       `json:"is_remote"`
+	Country                     string     `json:"country"`
+	State                       string     `json:"state"`
+	City                        string     `json:"city"`
+	MergeRegistrationSubmission bool       `json:"merge_registration_submission"`
 }
 
 type CreateEventRow struct {
-	ID                   uuid.UUID  `json:"id"`
-	Slug                 string     `json:"slug"`
-	OrganizerID          uuid.UUID  `json:"organizer_id"`
-	Title                string     `json:"title"`
-	Description          string     `json:"description"`
-	Category             string     `json:"category"`
-	ParticipationFormat  string     `json:"participation_format"`
-	Status               string     `json:"status"`
-	Eligibility          string     `json:"eligibility"`
-	Rules                string     `json:"rules"`
-	ContactEmail         string     `json:"contact_email"`
-	Location             string     `json:"location"`
-	MinTeamSize          int16      `json:"min_team_size"`
-	MaxTeamSize          int16      `json:"max_team_size"`
-	RegistrationOpensAt  *time.Time `json:"registration_opens_at"`
-	RegistrationClosesAt *time.Time `json:"registration_closes_at"`
-	StartsAt             *time.Time `json:"starts_at"`
-	EndsAt               *time.Time `json:"ends_at"`
-	SubmissionDeadline   *time.Time `json:"submission_deadline"`
-	Criteria             []byte     `json:"criteria"`
-	JudgingConfig        []byte     `json:"judging_config"`
-	JudgingStatus        string     `json:"judging_status"`
-	JudgingLockedAt      *time.Time `json:"judging_locked_at"`
-	ResultsPublishedAt   *time.Time `json:"results_published_at"`
-	CreatedAt            time.Time  `json:"created_at"`
-	UpdatedAt            time.Time  `json:"updated_at"`
+	ID                          uuid.UUID  `json:"id"`
+	Slug                        string     `json:"slug"`
+	OrganizerID                 uuid.UUID  `json:"organizer_id"`
+	Title                       string     `json:"title"`
+	Description                 string     `json:"description"`
+	Category                    string     `json:"category"`
+	ParticipationFormat         string     `json:"participation_format"`
+	Status                      string     `json:"status"`
+	Eligibility                 string     `json:"eligibility"`
+	Rules                       string     `json:"rules"`
+	ContactEmail                string     `json:"contact_email"`
+	Location                    string     `json:"location"`
+	MinTeamSize                 int16      `json:"min_team_size"`
+	MaxTeamSize                 int16      `json:"max_team_size"`
+	RegistrationOpensAt         *time.Time `json:"registration_opens_at"`
+	RegistrationClosesAt        *time.Time `json:"registration_closes_at"`
+	StartsAt                    *time.Time `json:"starts_at"`
+	EndsAt                      *time.Time `json:"ends_at"`
+	SubmissionDeadline          *time.Time `json:"submission_deadline"`
+	Criteria                    []byte     `json:"criteria"`
+	JudgingConfig               []byte     `json:"judging_config"`
+	JudgingStatus               string     `json:"judging_status"`
+	JudgingLockedAt             *time.Time `json:"judging_locked_at"`
+	ResultsPublishedAt          *time.Time `json:"results_published_at"`
+	CreatedAt                   time.Time  `json:"created_at"`
+	UpdatedAt                   time.Time  `json:"updated_at"`
+	IsRemote                    bool       `json:"is_remote"`
+	Country                     string     `json:"country"`
+	State                       string     `json:"state"`
+	City                        string     `json:"city"`
+	MergeRegistrationSubmission bool       `json:"merge_registration_submission"`
 }
 
 func (q *Queries) CreateEvent(ctx context.Context, arg CreateEventParams) (CreateEventRow, error) {
@@ -165,6 +177,11 @@ func (q *Queries) CreateEvent(ctx context.Context, arg CreateEventParams) (Creat
 		arg.EndsAt,
 		arg.SubmissionDeadline,
 		arg.Criteria,
+		arg.IsRemote,
+		arg.Country,
+		arg.State,
+		arg.City,
+		arg.MergeRegistrationSubmission,
 	)
 	var i CreateEventRow
 	err := row.Scan(
@@ -194,14 +211,19 @@ func (q *Queries) CreateEvent(ctx context.Context, arg CreateEventParams) (Creat
 		&i.ResultsPublishedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsRemote,
+		&i.Country,
+		&i.State,
+		&i.City,
+		&i.MergeRegistrationSubmission,
 	)
 	return i, err
 }
 
 const createFormField = `-- name: CreateFormField :one
-INSERT INTO event_form_fields (event_id, label, field_type, required, options, help_text, position)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, event_id, label, field_type, required, options, help_text, position, created_at
+INSERT INTO event_form_fields (event_id, label, field_type, required, options, help_text, position, form_kind)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, event_id, label, field_type, required, options, help_text, position, created_at, form_kind
 `
 
 type CreateFormFieldParams struct {
@@ -212,6 +234,7 @@ type CreateFormFieldParams struct {
 	Options   []byte    `json:"options"`
 	HelpText  string    `json:"help_text"`
 	Position  int32     `json:"position"`
+	FormKind  string    `json:"form_kind"`
 }
 
 func (q *Queries) CreateFormField(ctx context.Context, arg CreateFormFieldParams) (EventFormField, error) {
@@ -223,6 +246,7 @@ func (q *Queries) CreateFormField(ctx context.Context, arg CreateFormFieldParams
 		arg.Options,
 		arg.HelpText,
 		arg.Position,
+		arg.FormKind,
 	)
 	var i EventFormField
 	err := row.Scan(
@@ -235,6 +259,7 @@ func (q *Queries) CreateFormField(ctx context.Context, arg CreateFormFieldParams
 		&i.HelpText,
 		&i.Position,
 		&i.CreatedAt,
+		&i.FormKind,
 	)
 	return i, err
 }
@@ -292,11 +317,16 @@ func (q *Queries) DeleteEvent(ctx context.Context, id uuid.UUID) error {
 }
 
 const deleteFormFieldsForEvent = `-- name: DeleteFormFieldsForEvent :exec
-DELETE FROM event_form_fields WHERE event_id = $1
+DELETE FROM event_form_fields WHERE event_id = $1 AND form_kind = $2
 `
 
-func (q *Queries) DeleteFormFieldsForEvent(ctx context.Context, eventID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteFormFieldsForEvent, eventID)
+type DeleteFormFieldsForEventParams struct {
+	EventID  uuid.UUID `json:"event_id"`
+	FormKind string    `json:"form_kind"`
+}
+
+func (q *Queries) DeleteFormFieldsForEvent(ctx context.Context, arg DeleteFormFieldsForEventParams) error {
+	_, err := q.db.Exec(ctx, deleteFormFieldsForEvent, arg.EventID, arg.FormKind)
 	return err
 }
 
@@ -305,37 +335,43 @@ SELECT id, slug, organizer_id, title, description, category,
     participation_format, status, eligibility, rules, contact_email, location,
     min_team_size, max_team_size, registration_opens_at, registration_closes_at,
     starts_at, ends_at, submission_deadline, criteria, judging_config,
-    judging_status, judging_locked_at, results_published_at, created_at, updated_at
+    judging_status, judging_locked_at, results_published_at, created_at, updated_at,
+    is_remote, country, state, city, merge_registration_submission
 FROM events WHERE id = $1
 `
 
 type GetEventByIDRow struct {
-	ID                   uuid.UUID  `json:"id"`
-	Slug                 string     `json:"slug"`
-	OrganizerID          uuid.UUID  `json:"organizer_id"`
-	Title                string     `json:"title"`
-	Description          string     `json:"description"`
-	Category             string     `json:"category"`
-	ParticipationFormat  string     `json:"participation_format"`
-	Status               string     `json:"status"`
-	Eligibility          string     `json:"eligibility"`
-	Rules                string     `json:"rules"`
-	ContactEmail         string     `json:"contact_email"`
-	Location             string     `json:"location"`
-	MinTeamSize          int16      `json:"min_team_size"`
-	MaxTeamSize          int16      `json:"max_team_size"`
-	RegistrationOpensAt  *time.Time `json:"registration_opens_at"`
-	RegistrationClosesAt *time.Time `json:"registration_closes_at"`
-	StartsAt             *time.Time `json:"starts_at"`
-	EndsAt               *time.Time `json:"ends_at"`
-	SubmissionDeadline   *time.Time `json:"submission_deadline"`
-	Criteria             []byte     `json:"criteria"`
-	JudgingConfig        []byte     `json:"judging_config"`
-	JudgingStatus        string     `json:"judging_status"`
-	JudgingLockedAt      *time.Time `json:"judging_locked_at"`
-	ResultsPublishedAt   *time.Time `json:"results_published_at"`
-	CreatedAt            time.Time  `json:"created_at"`
-	UpdatedAt            time.Time  `json:"updated_at"`
+	ID                          uuid.UUID  `json:"id"`
+	Slug                        string     `json:"slug"`
+	OrganizerID                 uuid.UUID  `json:"organizer_id"`
+	Title                       string     `json:"title"`
+	Description                 string     `json:"description"`
+	Category                    string     `json:"category"`
+	ParticipationFormat         string     `json:"participation_format"`
+	Status                      string     `json:"status"`
+	Eligibility                 string     `json:"eligibility"`
+	Rules                       string     `json:"rules"`
+	ContactEmail                string     `json:"contact_email"`
+	Location                    string     `json:"location"`
+	MinTeamSize                 int16      `json:"min_team_size"`
+	MaxTeamSize                 int16      `json:"max_team_size"`
+	RegistrationOpensAt         *time.Time `json:"registration_opens_at"`
+	RegistrationClosesAt        *time.Time `json:"registration_closes_at"`
+	StartsAt                    *time.Time `json:"starts_at"`
+	EndsAt                      *time.Time `json:"ends_at"`
+	SubmissionDeadline          *time.Time `json:"submission_deadline"`
+	Criteria                    []byte     `json:"criteria"`
+	JudgingConfig               []byte     `json:"judging_config"`
+	JudgingStatus               string     `json:"judging_status"`
+	JudgingLockedAt             *time.Time `json:"judging_locked_at"`
+	ResultsPublishedAt          *time.Time `json:"results_published_at"`
+	CreatedAt                   time.Time  `json:"created_at"`
+	UpdatedAt                   time.Time  `json:"updated_at"`
+	IsRemote                    bool       `json:"is_remote"`
+	Country                     string     `json:"country"`
+	State                       string     `json:"state"`
+	City                        string     `json:"city"`
+	MergeRegistrationSubmission bool       `json:"merge_registration_submission"`
 }
 
 func (q *Queries) GetEventByID(ctx context.Context, id uuid.UUID) (GetEventByIDRow, error) {
@@ -368,6 +404,11 @@ func (q *Queries) GetEventByID(ctx context.Context, id uuid.UUID) (GetEventByIDR
 		&i.ResultsPublishedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsRemote,
+		&i.Country,
+		&i.State,
+		&i.City,
+		&i.MergeRegistrationSubmission,
 	)
 	return i, err
 }
@@ -377,37 +418,43 @@ SELECT id, slug, organizer_id, title, description, category,
     participation_format, status, eligibility, rules, contact_email, location,
     min_team_size, max_team_size, registration_opens_at, registration_closes_at,
     starts_at, ends_at, submission_deadline, criteria, judging_config,
-    judging_status, judging_locked_at, results_published_at, created_at, updated_at
+    judging_status, judging_locked_at, results_published_at, created_at, updated_at,
+    is_remote, country, state, city, merge_registration_submission
 FROM events WHERE slug = $1
 `
 
 type GetEventBySlugRow struct {
-	ID                   uuid.UUID  `json:"id"`
-	Slug                 string     `json:"slug"`
-	OrganizerID          uuid.UUID  `json:"organizer_id"`
-	Title                string     `json:"title"`
-	Description          string     `json:"description"`
-	Category             string     `json:"category"`
-	ParticipationFormat  string     `json:"participation_format"`
-	Status               string     `json:"status"`
-	Eligibility          string     `json:"eligibility"`
-	Rules                string     `json:"rules"`
-	ContactEmail         string     `json:"contact_email"`
-	Location             string     `json:"location"`
-	MinTeamSize          int16      `json:"min_team_size"`
-	MaxTeamSize          int16      `json:"max_team_size"`
-	RegistrationOpensAt  *time.Time `json:"registration_opens_at"`
-	RegistrationClosesAt *time.Time `json:"registration_closes_at"`
-	StartsAt             *time.Time `json:"starts_at"`
-	EndsAt               *time.Time `json:"ends_at"`
-	SubmissionDeadline   *time.Time `json:"submission_deadline"`
-	Criteria             []byte     `json:"criteria"`
-	JudgingConfig        []byte     `json:"judging_config"`
-	JudgingStatus        string     `json:"judging_status"`
-	JudgingLockedAt      *time.Time `json:"judging_locked_at"`
-	ResultsPublishedAt   *time.Time `json:"results_published_at"`
-	CreatedAt            time.Time  `json:"created_at"`
-	UpdatedAt            time.Time  `json:"updated_at"`
+	ID                          uuid.UUID  `json:"id"`
+	Slug                        string     `json:"slug"`
+	OrganizerID                 uuid.UUID  `json:"organizer_id"`
+	Title                       string     `json:"title"`
+	Description                 string     `json:"description"`
+	Category                    string     `json:"category"`
+	ParticipationFormat         string     `json:"participation_format"`
+	Status                      string     `json:"status"`
+	Eligibility                 string     `json:"eligibility"`
+	Rules                       string     `json:"rules"`
+	ContactEmail                string     `json:"contact_email"`
+	Location                    string     `json:"location"`
+	MinTeamSize                 int16      `json:"min_team_size"`
+	MaxTeamSize                 int16      `json:"max_team_size"`
+	RegistrationOpensAt         *time.Time `json:"registration_opens_at"`
+	RegistrationClosesAt        *time.Time `json:"registration_closes_at"`
+	StartsAt                    *time.Time `json:"starts_at"`
+	EndsAt                      *time.Time `json:"ends_at"`
+	SubmissionDeadline          *time.Time `json:"submission_deadline"`
+	Criteria                    []byte     `json:"criteria"`
+	JudgingConfig               []byte     `json:"judging_config"`
+	JudgingStatus               string     `json:"judging_status"`
+	JudgingLockedAt             *time.Time `json:"judging_locked_at"`
+	ResultsPublishedAt          *time.Time `json:"results_published_at"`
+	CreatedAt                   time.Time  `json:"created_at"`
+	UpdatedAt                   time.Time  `json:"updated_at"`
+	IsRemote                    bool       `json:"is_remote"`
+	Country                     string     `json:"country"`
+	State                       string     `json:"state"`
+	City                        string     `json:"city"`
+	MergeRegistrationSubmission bool       `json:"merge_registration_submission"`
 }
 
 func (q *Queries) GetEventBySlug(ctx context.Context, slug string) (GetEventBySlugRow, error) {
@@ -440,6 +487,11 @@ func (q *Queries) GetEventBySlug(ctx context.Context, slug string) (GetEventBySl
 		&i.ResultsPublishedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsRemote,
+		&i.Country,
+		&i.State,
+		&i.City,
+		&i.MergeRegistrationSubmission,
 	)
 	return i, err
 }
@@ -604,7 +656,8 @@ SELECT e.id, e.slug, e.organizer_id, e.title, e.description, e.category,
     e.location, e.min_team_size, e.max_team_size, e.registration_opens_at,
     e.registration_closes_at, e.starts_at, e.ends_at, e.submission_deadline,
     e.criteria, e.judging_config, e.judging_status, e.judging_locked_at,
-    e.results_published_at, e.created_at, e.updated_at
+    e.results_published_at, e.created_at, e.updated_at,
+    e.is_remote, e.country, e.state, e.city, e.merge_registration_submission
 FROM events e
 WHERE e.organizer_id = $1
    OR EXISTS (
@@ -616,32 +669,37 @@ ORDER BY e.created_at DESC
 `
 
 type ListEventsByOrganizerRow struct {
-	ID                   uuid.UUID  `json:"id"`
-	Slug                 string     `json:"slug"`
-	OrganizerID          uuid.UUID  `json:"organizer_id"`
-	Title                string     `json:"title"`
-	Description          string     `json:"description"`
-	Category             string     `json:"category"`
-	ParticipationFormat  string     `json:"participation_format"`
-	Status               string     `json:"status"`
-	Eligibility          string     `json:"eligibility"`
-	Rules                string     `json:"rules"`
-	ContactEmail         string     `json:"contact_email"`
-	Location             string     `json:"location"`
-	MinTeamSize          int16      `json:"min_team_size"`
-	MaxTeamSize          int16      `json:"max_team_size"`
-	RegistrationOpensAt  *time.Time `json:"registration_opens_at"`
-	RegistrationClosesAt *time.Time `json:"registration_closes_at"`
-	StartsAt             *time.Time `json:"starts_at"`
-	EndsAt               *time.Time `json:"ends_at"`
-	SubmissionDeadline   *time.Time `json:"submission_deadline"`
-	Criteria             []byte     `json:"criteria"`
-	JudgingConfig        []byte     `json:"judging_config"`
-	JudgingStatus        string     `json:"judging_status"`
-	JudgingLockedAt      *time.Time `json:"judging_locked_at"`
-	ResultsPublishedAt   *time.Time `json:"results_published_at"`
-	CreatedAt            time.Time  `json:"created_at"`
-	UpdatedAt            time.Time  `json:"updated_at"`
+	ID                          uuid.UUID  `json:"id"`
+	Slug                        string     `json:"slug"`
+	OrganizerID                 uuid.UUID  `json:"organizer_id"`
+	Title                       string     `json:"title"`
+	Description                 string     `json:"description"`
+	Category                    string     `json:"category"`
+	ParticipationFormat         string     `json:"participation_format"`
+	Status                      string     `json:"status"`
+	Eligibility                 string     `json:"eligibility"`
+	Rules                       string     `json:"rules"`
+	ContactEmail                string     `json:"contact_email"`
+	Location                    string     `json:"location"`
+	MinTeamSize                 int16      `json:"min_team_size"`
+	MaxTeamSize                 int16      `json:"max_team_size"`
+	RegistrationOpensAt         *time.Time `json:"registration_opens_at"`
+	RegistrationClosesAt        *time.Time `json:"registration_closes_at"`
+	StartsAt                    *time.Time `json:"starts_at"`
+	EndsAt                      *time.Time `json:"ends_at"`
+	SubmissionDeadline          *time.Time `json:"submission_deadline"`
+	Criteria                    []byte     `json:"criteria"`
+	JudgingConfig               []byte     `json:"judging_config"`
+	JudgingStatus               string     `json:"judging_status"`
+	JudgingLockedAt             *time.Time `json:"judging_locked_at"`
+	ResultsPublishedAt          *time.Time `json:"results_published_at"`
+	CreatedAt                   time.Time  `json:"created_at"`
+	UpdatedAt                   time.Time  `json:"updated_at"`
+	IsRemote                    bool       `json:"is_remote"`
+	Country                     string     `json:"country"`
+	State                       string     `json:"state"`
+	City                        string     `json:"city"`
+	MergeRegistrationSubmission bool       `json:"merge_registration_submission"`
 }
 
 // Hosting includes events the user owns and events they co-organize. Without
@@ -683,6 +741,11 @@ func (q *Queries) ListEventsByOrganizer(ctx context.Context, organizerID uuid.UU
 			&i.ResultsPublishedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.IsRemote,
+			&i.Country,
+			&i.State,
+			&i.City,
+			&i.MergeRegistrationSubmission,
 		); err != nil {
 			return nil, err
 		}
@@ -695,11 +758,16 @@ func (q *Queries) ListEventsByOrganizer(ctx context.Context, organizerID uuid.UU
 }
 
 const listFormFields = `-- name: ListFormFields :many
-SELECT id, event_id, label, field_type, required, options, help_text, position, created_at FROM event_form_fields WHERE event_id = $1 ORDER BY position ASC, created_at ASC
+SELECT id, event_id, label, field_type, required, options, help_text, position, created_at, form_kind FROM event_form_fields WHERE event_id = $1 AND form_kind = $2 ORDER BY position ASC, created_at ASC
 `
 
-func (q *Queries) ListFormFields(ctx context.Context, eventID uuid.UUID) ([]EventFormField, error) {
-	rows, err := q.db.Query(ctx, listFormFields, eventID)
+type ListFormFieldsParams struct {
+	EventID  uuid.UUID `json:"event_id"`
+	FormKind string    `json:"form_kind"`
+}
+
+func (q *Queries) ListFormFields(ctx context.Context, arg ListFormFieldsParams) ([]EventFormField, error) {
+	rows, err := q.db.Query(ctx, listFormFields, arg.EventID, arg.FormKind)
 	if err != nil {
 		return nil, err
 	}
@@ -717,6 +785,7 @@ func (q *Queries) ListFormFields(ctx context.Context, eventID uuid.UUID) ([]Even
 			&i.HelpText,
 			&i.Position,
 			&i.CreatedAt,
+			&i.FormKind,
 		); err != nil {
 			return nil, err
 		}
@@ -734,7 +803,8 @@ SELECT e.id, e.slug, e.organizer_id, e.title, e.description, e.category,
     e.location, e.min_team_size, e.max_team_size, e.registration_opens_at,
     e.registration_closes_at, e.starts_at, e.ends_at, e.submission_deadline,
     e.criteria, e.judging_config, e.judging_status, e.judging_locked_at,
-    e.results_published_at, e.created_at, e.updated_at
+    e.results_published_at, e.created_at, e.updated_at,
+    e.is_remote, e.country, e.state, e.city, e.merge_registration_submission
 FROM event_staff s
 JOIN events e ON e.id = s.event_id
 WHERE s.user_id = $1 AND s.role = 'judge' AND s.status = 'accepted'
@@ -742,32 +812,37 @@ ORDER BY e.starts_at DESC NULLS LAST, e.created_at DESC
 `
 
 type ListJudgeEventsRow struct {
-	ID                   uuid.UUID  `json:"id"`
-	Slug                 string     `json:"slug"`
-	OrganizerID          uuid.UUID  `json:"organizer_id"`
-	Title                string     `json:"title"`
-	Description          string     `json:"description"`
-	Category             string     `json:"category"`
-	ParticipationFormat  string     `json:"participation_format"`
-	Status               string     `json:"status"`
-	Eligibility          string     `json:"eligibility"`
-	Rules                string     `json:"rules"`
-	ContactEmail         string     `json:"contact_email"`
-	Location             string     `json:"location"`
-	MinTeamSize          int16      `json:"min_team_size"`
-	MaxTeamSize          int16      `json:"max_team_size"`
-	RegistrationOpensAt  *time.Time `json:"registration_opens_at"`
-	RegistrationClosesAt *time.Time `json:"registration_closes_at"`
-	StartsAt             *time.Time `json:"starts_at"`
-	EndsAt               *time.Time `json:"ends_at"`
-	SubmissionDeadline   *time.Time `json:"submission_deadline"`
-	Criteria             []byte     `json:"criteria"`
-	JudgingConfig        []byte     `json:"judging_config"`
-	JudgingStatus        string     `json:"judging_status"`
-	JudgingLockedAt      *time.Time `json:"judging_locked_at"`
-	ResultsPublishedAt   *time.Time `json:"results_published_at"`
-	CreatedAt            time.Time  `json:"created_at"`
-	UpdatedAt            time.Time  `json:"updated_at"`
+	ID                          uuid.UUID  `json:"id"`
+	Slug                        string     `json:"slug"`
+	OrganizerID                 uuid.UUID  `json:"organizer_id"`
+	Title                       string     `json:"title"`
+	Description                 string     `json:"description"`
+	Category                    string     `json:"category"`
+	ParticipationFormat         string     `json:"participation_format"`
+	Status                      string     `json:"status"`
+	Eligibility                 string     `json:"eligibility"`
+	Rules                       string     `json:"rules"`
+	ContactEmail                string     `json:"contact_email"`
+	Location                    string     `json:"location"`
+	MinTeamSize                 int16      `json:"min_team_size"`
+	MaxTeamSize                 int16      `json:"max_team_size"`
+	RegistrationOpensAt         *time.Time `json:"registration_opens_at"`
+	RegistrationClosesAt        *time.Time `json:"registration_closes_at"`
+	StartsAt                    *time.Time `json:"starts_at"`
+	EndsAt                      *time.Time `json:"ends_at"`
+	SubmissionDeadline          *time.Time `json:"submission_deadline"`
+	Criteria                    []byte     `json:"criteria"`
+	JudgingConfig               []byte     `json:"judging_config"`
+	JudgingStatus               string     `json:"judging_status"`
+	JudgingLockedAt             *time.Time `json:"judging_locked_at"`
+	ResultsPublishedAt          *time.Time `json:"results_published_at"`
+	CreatedAt                   time.Time  `json:"created_at"`
+	UpdatedAt                   time.Time  `json:"updated_at"`
+	IsRemote                    bool       `json:"is_remote"`
+	Country                     string     `json:"country"`
+	State                       string     `json:"state"`
+	City                        string     `json:"city"`
+	MergeRegistrationSubmission bool       `json:"merge_registration_submission"`
 }
 
 func (q *Queries) ListJudgeEvents(ctx context.Context, userID *uuid.UUID) ([]ListJudgeEventsRow, error) {
@@ -806,6 +881,11 @@ func (q *Queries) ListJudgeEvents(ctx context.Context, userID *uuid.UUID) ([]Lis
 			&i.ResultsPublishedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.IsRemote,
+			&i.Country,
+			&i.State,
+			&i.City,
+			&i.MergeRegistrationSubmission,
 		); err != nil {
 			return nil, err
 		}
@@ -824,6 +904,7 @@ SELECT e.id, e.slug, e.organizer_id, e.title, e.description, e.category,
     e.registration_closes_at, e.starts_at, e.ends_at, e.submission_deadline,
     e.criteria, e.judging_config, e.judging_status, e.judging_locked_at,
     e.results_published_at, e.created_at, e.updated_at,
+    e.is_remote, e.country, e.state, e.city, e.merge_registration_submission,
     count(*) OVER() AS total_count
 FROM events e
 WHERE e.status IN ('published', 'closed', 'results_published')
@@ -834,7 +915,11 @@ WHERE e.status IN ('published', 'closed', 'results_published')
   AND ($3::text IS NULL
        OR e.participation_format = $3::text
        OR e.participation_format = 'both')
-  AND ($4::text IS NULL OR
+  AND ($4::boolean IS NULL OR e.is_remote = $4::boolean)
+  AND ($5::text IS NULL OR e.country ILIKE $5::text)
+  AND ($6::text IS NULL OR e.state ILIKE $6::text)
+  AND ($7::text IS NULL OR e.city ILIKE $7::text)
+  AND ($8::text IS NULL OR
        CASE
            WHEN e.status = 'results_published'
                 OR (e.ends_at IS NOT NULL AND e.ends_at < now()) THEN 'ended'
@@ -842,48 +927,57 @@ WHERE e.status IN ('published', 'closed', 'results_published')
                 OR (e.registration_closes_at IS NOT NULL AND e.registration_closes_at < now()) THEN 'closed'
            WHEN e.registration_opens_at IS NOT NULL AND e.registration_opens_at > now() THEN 'upcoming'
            ELSE 'open'
-       END = $4::text)
+       END = $8::text)
 ORDER BY COALESCE(e.starts_at, e.created_at) ASC, e.created_at DESC
-LIMIT $6 OFFSET $5
+LIMIT $10 OFFSET $9
 `
 
 type ListPublishedEventsParams struct {
 	Search    *string `json:"search"`
 	Category  *string `json:"category"`
 	Format    *string `json:"format"`
+	Remote    *bool   `json:"remote"`
+	Country   *string `json:"country"`
+	State     *string `json:"state"`
+	City      *string `json:"city"`
 	RegStatus *string `json:"reg_status"`
 	Off       int32   `json:"off"`
 	Lim       int32   `json:"lim"`
 }
 
 type ListPublishedEventsRow struct {
-	ID                   uuid.UUID  `json:"id"`
-	Slug                 string     `json:"slug"`
-	OrganizerID          uuid.UUID  `json:"organizer_id"`
-	Title                string     `json:"title"`
-	Description          string     `json:"description"`
-	Category             string     `json:"category"`
-	ParticipationFormat  string     `json:"participation_format"`
-	Status               string     `json:"status"`
-	Eligibility          string     `json:"eligibility"`
-	Rules                string     `json:"rules"`
-	ContactEmail         string     `json:"contact_email"`
-	Location             string     `json:"location"`
-	MinTeamSize          int16      `json:"min_team_size"`
-	MaxTeamSize          int16      `json:"max_team_size"`
-	RegistrationOpensAt  *time.Time `json:"registration_opens_at"`
-	RegistrationClosesAt *time.Time `json:"registration_closes_at"`
-	StartsAt             *time.Time `json:"starts_at"`
-	EndsAt               *time.Time `json:"ends_at"`
-	SubmissionDeadline   *time.Time `json:"submission_deadline"`
-	Criteria             []byte     `json:"criteria"`
-	JudgingConfig        []byte     `json:"judging_config"`
-	JudgingStatus        string     `json:"judging_status"`
-	JudgingLockedAt      *time.Time `json:"judging_locked_at"`
-	ResultsPublishedAt   *time.Time `json:"results_published_at"`
-	CreatedAt            time.Time  `json:"created_at"`
-	UpdatedAt            time.Time  `json:"updated_at"`
-	TotalCount           int64      `json:"total_count"`
+	ID                          uuid.UUID  `json:"id"`
+	Slug                        string     `json:"slug"`
+	OrganizerID                 uuid.UUID  `json:"organizer_id"`
+	Title                       string     `json:"title"`
+	Description                 string     `json:"description"`
+	Category                    string     `json:"category"`
+	ParticipationFormat         string     `json:"participation_format"`
+	Status                      string     `json:"status"`
+	Eligibility                 string     `json:"eligibility"`
+	Rules                       string     `json:"rules"`
+	ContactEmail                string     `json:"contact_email"`
+	Location                    string     `json:"location"`
+	MinTeamSize                 int16      `json:"min_team_size"`
+	MaxTeamSize                 int16      `json:"max_team_size"`
+	RegistrationOpensAt         *time.Time `json:"registration_opens_at"`
+	RegistrationClosesAt        *time.Time `json:"registration_closes_at"`
+	StartsAt                    *time.Time `json:"starts_at"`
+	EndsAt                      *time.Time `json:"ends_at"`
+	SubmissionDeadline          *time.Time `json:"submission_deadline"`
+	Criteria                    []byte     `json:"criteria"`
+	JudgingConfig               []byte     `json:"judging_config"`
+	JudgingStatus               string     `json:"judging_status"`
+	JudgingLockedAt             *time.Time `json:"judging_locked_at"`
+	ResultsPublishedAt          *time.Time `json:"results_published_at"`
+	CreatedAt                   time.Time  `json:"created_at"`
+	UpdatedAt                   time.Time  `json:"updated_at"`
+	IsRemote                    bool       `json:"is_remote"`
+	Country                     string     `json:"country"`
+	State                       string     `json:"state"`
+	City                        string     `json:"city"`
+	MergeRegistrationSubmission bool       `json:"merge_registration_submission"`
+	TotalCount                  int64      `json:"total_count"`
 }
 
 func (q *Queries) ListPublishedEvents(ctx context.Context, arg ListPublishedEventsParams) ([]ListPublishedEventsRow, error) {
@@ -891,6 +985,10 @@ func (q *Queries) ListPublishedEvents(ctx context.Context, arg ListPublishedEven
 		arg.Search,
 		arg.Category,
 		arg.Format,
+		arg.Remote,
+		arg.Country,
+		arg.State,
+		arg.City,
 		arg.RegStatus,
 		arg.Off,
 		arg.Lim,
@@ -929,6 +1027,11 @@ func (q *Queries) ListPublishedEvents(ctx context.Context, arg ListPublishedEven
 			&i.ResultsPublishedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.IsRemote,
+			&i.Country,
+			&i.State,
+			&i.City,
+			&i.MergeRegistrationSubmission,
 			&i.TotalCount,
 		); err != nil {
 			return nil, err
@@ -946,37 +1049,43 @@ SELECT id, slug, organizer_id, title, description, category,
     participation_format, status, eligibility, rules, contact_email, location,
     min_team_size, max_team_size, registration_opens_at, registration_closes_at,
     starts_at, ends_at, submission_deadline, criteria, judging_config,
-    judging_status, judging_locked_at, results_published_at, created_at, updated_at
+    judging_status, judging_locked_at, results_published_at, created_at, updated_at,
+    is_remote, country, state, city, merge_registration_submission
 FROM events WHERE id = $1 FOR UPDATE
 `
 
 type LockEventForUpdateRow struct {
-	ID                   uuid.UUID  `json:"id"`
-	Slug                 string     `json:"slug"`
-	OrganizerID          uuid.UUID  `json:"organizer_id"`
-	Title                string     `json:"title"`
-	Description          string     `json:"description"`
-	Category             string     `json:"category"`
-	ParticipationFormat  string     `json:"participation_format"`
-	Status               string     `json:"status"`
-	Eligibility          string     `json:"eligibility"`
-	Rules                string     `json:"rules"`
-	ContactEmail         string     `json:"contact_email"`
-	Location             string     `json:"location"`
-	MinTeamSize          int16      `json:"min_team_size"`
-	MaxTeamSize          int16      `json:"max_team_size"`
-	RegistrationOpensAt  *time.Time `json:"registration_opens_at"`
-	RegistrationClosesAt *time.Time `json:"registration_closes_at"`
-	StartsAt             *time.Time `json:"starts_at"`
-	EndsAt               *time.Time `json:"ends_at"`
-	SubmissionDeadline   *time.Time `json:"submission_deadline"`
-	Criteria             []byte     `json:"criteria"`
-	JudgingConfig        []byte     `json:"judging_config"`
-	JudgingStatus        string     `json:"judging_status"`
-	JudgingLockedAt      *time.Time `json:"judging_locked_at"`
-	ResultsPublishedAt   *time.Time `json:"results_published_at"`
-	CreatedAt            time.Time  `json:"created_at"`
-	UpdatedAt            time.Time  `json:"updated_at"`
+	ID                          uuid.UUID  `json:"id"`
+	Slug                        string     `json:"slug"`
+	OrganizerID                 uuid.UUID  `json:"organizer_id"`
+	Title                       string     `json:"title"`
+	Description                 string     `json:"description"`
+	Category                    string     `json:"category"`
+	ParticipationFormat         string     `json:"participation_format"`
+	Status                      string     `json:"status"`
+	Eligibility                 string     `json:"eligibility"`
+	Rules                       string     `json:"rules"`
+	ContactEmail                string     `json:"contact_email"`
+	Location                    string     `json:"location"`
+	MinTeamSize                 int16      `json:"min_team_size"`
+	MaxTeamSize                 int16      `json:"max_team_size"`
+	RegistrationOpensAt         *time.Time `json:"registration_opens_at"`
+	RegistrationClosesAt        *time.Time `json:"registration_closes_at"`
+	StartsAt                    *time.Time `json:"starts_at"`
+	EndsAt                      *time.Time `json:"ends_at"`
+	SubmissionDeadline          *time.Time `json:"submission_deadline"`
+	Criteria                    []byte     `json:"criteria"`
+	JudgingConfig               []byte     `json:"judging_config"`
+	JudgingStatus               string     `json:"judging_status"`
+	JudgingLockedAt             *time.Time `json:"judging_locked_at"`
+	ResultsPublishedAt          *time.Time `json:"results_published_at"`
+	CreatedAt                   time.Time  `json:"created_at"`
+	UpdatedAt                   time.Time  `json:"updated_at"`
+	IsRemote                    bool       `json:"is_remote"`
+	Country                     string     `json:"country"`
+	State                       string     `json:"state"`
+	City                        string     `json:"city"`
+	MergeRegistrationSubmission bool       `json:"merge_registration_submission"`
 }
 
 func (q *Queries) LockEventForUpdate(ctx context.Context, id uuid.UUID) (LockEventForUpdateRow, error) {
@@ -1009,6 +1118,11 @@ func (q *Queries) LockEventForUpdate(ctx context.Context, id uuid.UUID) (LockEve
 		&i.ResultsPublishedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsRemote,
+		&i.Country,
+		&i.State,
+		&i.City,
+		&i.MergeRegistrationSubmission,
 	)
 	return i, err
 }
@@ -1028,62 +1142,74 @@ UPDATE events SET
     eligibility = $6, rules = $7, contact_email = $8, location = $9,
     min_team_size = $10, max_team_size = $11, registration_opens_at = $12,
     registration_closes_at = $13, starts_at = $14, ends_at = $15,
-    submission_deadline = $16, criteria = $17, updated_at = now()
+    submission_deadline = $16, criteria = $17, is_remote = $18, country = $19,
+    state = $20, city = $21, merge_registration_submission = $22, updated_at = now()
 WHERE id = $1
 RETURNING id, slug, organizer_id, title, description, category,
     participation_format, status, eligibility, rules, contact_email, location,
     min_team_size, max_team_size, registration_opens_at, registration_closes_at,
     starts_at, ends_at, submission_deadline, criteria, judging_config,
-    judging_status, judging_locked_at, results_published_at, created_at, updated_at
+    judging_status, judging_locked_at, results_published_at, created_at, updated_at,
+    is_remote, country, state, city, merge_registration_submission
 `
 
 type UpdateEventParams struct {
-	ID                   uuid.UUID  `json:"id"`
-	Title                string     `json:"title"`
-	Description          string     `json:"description"`
-	Category             string     `json:"category"`
-	ParticipationFormat  string     `json:"participation_format"`
-	Eligibility          string     `json:"eligibility"`
-	Rules                string     `json:"rules"`
-	ContactEmail         string     `json:"contact_email"`
-	Location             string     `json:"location"`
-	MinTeamSize          int16      `json:"min_team_size"`
-	MaxTeamSize          int16      `json:"max_team_size"`
-	RegistrationOpensAt  *time.Time `json:"registration_opens_at"`
-	RegistrationClosesAt *time.Time `json:"registration_closes_at"`
-	StartsAt             *time.Time `json:"starts_at"`
-	EndsAt               *time.Time `json:"ends_at"`
-	SubmissionDeadline   *time.Time `json:"submission_deadline"`
-	Criteria             []byte     `json:"criteria"`
+	ID                          uuid.UUID  `json:"id"`
+	Title                       string     `json:"title"`
+	Description                 string     `json:"description"`
+	Category                    string     `json:"category"`
+	ParticipationFormat         string     `json:"participation_format"`
+	Eligibility                 string     `json:"eligibility"`
+	Rules                       string     `json:"rules"`
+	ContactEmail                string     `json:"contact_email"`
+	Location                    string     `json:"location"`
+	MinTeamSize                 int16      `json:"min_team_size"`
+	MaxTeamSize                 int16      `json:"max_team_size"`
+	RegistrationOpensAt         *time.Time `json:"registration_opens_at"`
+	RegistrationClosesAt        *time.Time `json:"registration_closes_at"`
+	StartsAt                    *time.Time `json:"starts_at"`
+	EndsAt                      *time.Time `json:"ends_at"`
+	SubmissionDeadline          *time.Time `json:"submission_deadline"`
+	Criteria                    []byte     `json:"criteria"`
+	IsRemote                    bool       `json:"is_remote"`
+	Country                     string     `json:"country"`
+	State                       string     `json:"state"`
+	City                        string     `json:"city"`
+	MergeRegistrationSubmission bool       `json:"merge_registration_submission"`
 }
 
 type UpdateEventRow struct {
-	ID                   uuid.UUID  `json:"id"`
-	Slug                 string     `json:"slug"`
-	OrganizerID          uuid.UUID  `json:"organizer_id"`
-	Title                string     `json:"title"`
-	Description          string     `json:"description"`
-	Category             string     `json:"category"`
-	ParticipationFormat  string     `json:"participation_format"`
-	Status               string     `json:"status"`
-	Eligibility          string     `json:"eligibility"`
-	Rules                string     `json:"rules"`
-	ContactEmail         string     `json:"contact_email"`
-	Location             string     `json:"location"`
-	MinTeamSize          int16      `json:"min_team_size"`
-	MaxTeamSize          int16      `json:"max_team_size"`
-	RegistrationOpensAt  *time.Time `json:"registration_opens_at"`
-	RegistrationClosesAt *time.Time `json:"registration_closes_at"`
-	StartsAt             *time.Time `json:"starts_at"`
-	EndsAt               *time.Time `json:"ends_at"`
-	SubmissionDeadline   *time.Time `json:"submission_deadline"`
-	Criteria             []byte     `json:"criteria"`
-	JudgingConfig        []byte     `json:"judging_config"`
-	JudgingStatus        string     `json:"judging_status"`
-	JudgingLockedAt      *time.Time `json:"judging_locked_at"`
-	ResultsPublishedAt   *time.Time `json:"results_published_at"`
-	CreatedAt            time.Time  `json:"created_at"`
-	UpdatedAt            time.Time  `json:"updated_at"`
+	ID                          uuid.UUID  `json:"id"`
+	Slug                        string     `json:"slug"`
+	OrganizerID                 uuid.UUID  `json:"organizer_id"`
+	Title                       string     `json:"title"`
+	Description                 string     `json:"description"`
+	Category                    string     `json:"category"`
+	ParticipationFormat         string     `json:"participation_format"`
+	Status                      string     `json:"status"`
+	Eligibility                 string     `json:"eligibility"`
+	Rules                       string     `json:"rules"`
+	ContactEmail                string     `json:"contact_email"`
+	Location                    string     `json:"location"`
+	MinTeamSize                 int16      `json:"min_team_size"`
+	MaxTeamSize                 int16      `json:"max_team_size"`
+	RegistrationOpensAt         *time.Time `json:"registration_opens_at"`
+	RegistrationClosesAt        *time.Time `json:"registration_closes_at"`
+	StartsAt                    *time.Time `json:"starts_at"`
+	EndsAt                      *time.Time `json:"ends_at"`
+	SubmissionDeadline          *time.Time `json:"submission_deadline"`
+	Criteria                    []byte     `json:"criteria"`
+	JudgingConfig               []byte     `json:"judging_config"`
+	JudgingStatus               string     `json:"judging_status"`
+	JudgingLockedAt             *time.Time `json:"judging_locked_at"`
+	ResultsPublishedAt          *time.Time `json:"results_published_at"`
+	CreatedAt                   time.Time  `json:"created_at"`
+	UpdatedAt                   time.Time  `json:"updated_at"`
+	IsRemote                    bool       `json:"is_remote"`
+	Country                     string     `json:"country"`
+	State                       string     `json:"state"`
+	City                        string     `json:"city"`
+	MergeRegistrationSubmission bool       `json:"merge_registration_submission"`
 }
 
 func (q *Queries) UpdateEvent(ctx context.Context, arg UpdateEventParams) (UpdateEventRow, error) {
@@ -1105,6 +1231,11 @@ func (q *Queries) UpdateEvent(ctx context.Context, arg UpdateEventParams) (Updat
 		arg.EndsAt,
 		arg.SubmissionDeadline,
 		arg.Criteria,
+		arg.IsRemote,
+		arg.Country,
+		arg.State,
+		arg.City,
+		arg.MergeRegistrationSubmission,
 	)
 	var i UpdateEventRow
 	err := row.Scan(
@@ -1134,6 +1265,11 @@ func (q *Queries) UpdateEvent(ctx context.Context, arg UpdateEventParams) (Updat
 		&i.ResultsPublishedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsRemote,
+		&i.Country,
+		&i.State,
+		&i.City,
+		&i.MergeRegistrationSubmission,
 	)
 	return i, err
 }

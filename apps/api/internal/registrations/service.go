@@ -69,9 +69,16 @@ func (s *Service) Create(ctx context.Context, userID, eventID uuid.UUID, teamID 
 		return nil, err
 	}
 
-	fields, err := s.store.ListFormFields(ctx, eventID)
+	fields, err := s.store.ListFormFields(ctx, db.ListFormFieldsParams{EventID: eventID, FormKind: "registration"})
 	if err != nil {
 		return nil, err
+	}
+	if ev.MergeRegistrationSubmission {
+		extra, err := s.store.ListFormFields(ctx, db.ListFormFieldsParams{EventID: eventID, FormKind: "submission"})
+		if err != nil {
+			return nil, err
+		}
+		fields = append(fields, extra...)
 	}
 	cleanAnswers, err := validateAnswers(fields, answers)
 	if err != nil {
@@ -199,9 +206,16 @@ func (s *Service) UpdateAnswers(ctx context.Context, userID, eventID uuid.UUID, 
 	if reg.Status == "cancelled" {
 		return nil, apperr.ErrConflict
 	}
-	fields, err := s.store.ListFormFields(ctx, eventID)
+	fields, err := s.store.ListFormFields(ctx, db.ListFormFieldsParams{EventID: eventID, FormKind: "registration"})
 	if err != nil {
 		return nil, err
+	}
+	if ev.MergeRegistrationSubmission {
+		extra, err := s.store.ListFormFields(ctx, db.ListFormFieldsParams{EventID: eventID, FormKind: "submission"})
+		if err != nil {
+			return nil, err
+		}
+		fields = append(fields, extra...)
 	}
 	clean, err := validateAnswers(fields, answers)
 	if err != nil {

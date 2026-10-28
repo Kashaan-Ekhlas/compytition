@@ -2,6 +2,8 @@ package teams
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"log/slog"
 	"strings"
@@ -354,9 +356,12 @@ func (s *Service) Invite(ctx context.Context, userID, teamID uuid.UUID, username
 		return nil, err
 	}
 	username = strings.TrimSpace(username)
+	if username == "" {
+		return nil, apperr.Invalid("username", "Enter a username.")
+	}
 	target, err := s.store.GetUserByUsername(ctx, username)
 	if err != nil {
-		return nil, apperr.Invalid("username", "No participant with that username.")
+		return nil, apperr.Invalid("username", "username not found")
 	}
 	if target.ID == userID {
 		return nil, apperr.Invalid("username", "You cannot invite yourself.")
@@ -392,6 +397,92 @@ func (s *Service) Invite(ctx context.Context, userID, teamID uuid.UUID, username
 		ID: inv.ID, TeamID: inv.TeamID, InvitedUserID: inv.InvitedUserID,
 		InvitedBy: inv.InvitedBy, Status: inv.Status, CreatedAt: inv.CreatedAt,
 	}, nil
+}
+
+// InviteLinkView is the shareable team link shown to organizers and owners.
+type InviteLinkView struct {
+	Token      string    `json:"token"`
+	TeamID     uuid.UUID `json:"team_id"`
+	TeamName   string    `json:"team_name"`
+	EventID    uuid.UUID `json:"event_id"`
+	EventTitle string    `json:"event_title"`
+	CreatedAt  time.Time `json:"created_at,omitempty"`
+}
+
+// InviteLink returns the team's stable shareable token, creating one on first
+// use. Anyone with the link joins after signing in; existing accounts join
+// immediately and new accounts continue to the link after registration.
+func (s *Service) InviteLink(ctx context.Context, userID, teamID uuid.UUID) (*InviteLinkView, error) {
+	team, err := s.teamOwnedBy(ctx, teamID, userID)
+	if err != nil {
+		return nil, err
+	}
+	ev, err := s.store.GetEventByID(ctx, team.EventID)
+	if err != nil {
+		return nil, apperr.ErrNotFound
+	}
+	if err := ensureTeamFormationOpen(ev); err != nil {
+		return nil, err
+	}
+	token := ""
+	if team.InviteToken != nil {
+		token = *team.InviteToken
+	}
+	if token == "" {
+		buf := make([]byte, 24)
+		if _, err := rand.Read(buf); err != nil {
+			return nil, err
+		}
+		token = hex.EncodeToString(buf)
+		if err := s.store.SetTeamInviteToken(ctx, db.SetTeamInviteTokenParams{ID: teamID, InviteToken: &token}); err != nil {
+			return nil, err
+		}
+	}
+	return &InviteLinkView{
+		Token: token, TeamID: team.ID, TeamName: team.Name,
+		EventID: ev.ID, EventTitle: ev.Title, CreatedAt: team.CreatedAt,
+	}, nil
+}
+
+// PreviewInviteLink is public so the invite page can explain the team before
+// asking the visitor to sign in.
+func (s *Service) PreviewInviteLink(ctx context.Context, token string) (*InviteLinkView, error) {
+	team, err := s.store.GetTeamByInviteToken(ctx, ptrString(strings.TrimSpace(token)))
+	if err != nil {
+		return nil, apperr.ErrNotFound
+	}
+	ev, err := s.store.GetEventByID(ctx, team.EventID)
+	if err != nil {
+		return nil, apperr.ErrNotFound
+	}
+	return &InviteLinkView{
+		Token: *team.InviteToken, TeamID: team.ID, TeamName: team.Name,
+		EventID: ev.ID, EventTitle: ev.Title, CreatedAt: team.CreatedAt,
+	}, nil
+}
+
+// AcceptInviteLink joins the signed-in user to the team behind the token.
+// Reusing a link is safe: members already on the team simply see the team.
+func (s *Service) AcceptInviteLink(ctx context.Context, userID uuid.UUID, token string) (*TeamView, error) {
+	team, err := s.store.GetTeamByInviteToken(ctx, ptrString(strings.TrimSpace(token)))
+	if err != nil {
+		return nil, apperr.ErrNotFound
+	}
+	if _, err := s.store.GetTeamMember(ctx, db.GetTeamMemberParams{TeamID: team.ID, UserID: userID}); err == nil {
+		return s.Get(ctx, &userID, team.ID)
+	}
+	joined, err := s.joinTeam(ctx, userID, team.ID, func(q *db.Queries) error { return nil })
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.store.CreateNotification(ctx, db.CreateNotificationParams{
+		UserID: team.OwnerID, Kind: "team_joined", Title: "New teammate",
+		Body: "Someone joined " + team.Name + " through your invite link.",
+		Link: "/events/" + team.EventID.String() + "/team",
+	}); err != nil {
+		s.log.Warn("notify team link join", "error", err)
+	}
+	return joined, nil
 }
 
 func (s *Service) CancelInvite(ctx context.Context, userID, teamID, inviteID uuid.UUID) error {
@@ -745,6 +836,10 @@ func ensureTeamFormationOpen(ev db.GetEventByIDRow) error {
 		return apperr.Invalid("event", "Registration has closed.")
 	}
 	return nil
+}
+
+func ptrString(value string) *string {
+	return &value
 }
 
 func derefString(s *string) string {

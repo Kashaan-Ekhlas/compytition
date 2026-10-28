@@ -310,3 +310,43 @@ func (h *Handler) teamID(w http.ResponseWriter, r *http.Request) (uuid.UUID, boo
 	}
 	return id, true
 }
+
+func (h *Handler) InviteLink(w http.ResponseWriter, r *http.Request) {
+	u := httpx.MustUser(r.Context())
+	teamID, ok := h.teamID(w, r)
+	if !ok {
+		return
+	}
+	link, err := h.svc.InviteLink(r.Context(), u.ID, teamID)
+	if err != nil {
+		httpx.WriteServiceError(w, h.log, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"invite_link": link})
+}
+
+func (h *Handler) PreviewInviteLink(w http.ResponseWriter, r *http.Request) {
+	link, err := h.svc.PreviewInviteLink(r.Context(), r.URL.Query().Get("token"))
+	if err != nil {
+		httpx.WriteServiceError(w, h.log, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"invite_link": link})
+}
+
+func (h *Handler) AcceptInviteLink(w http.ResponseWriter, r *http.Request) {
+	u := httpx.MustUser(r.Context())
+	var req struct {
+		Token string `json:"token"`
+	}
+	if err := httpx.DecodeJSON(w, r, &req, 8<<10); err != nil {
+		httpx.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	team, err := h.svc.AcceptInviteLink(r.Context(), u.ID, req.Token)
+	if err != nil {
+		httpx.WriteServiceError(w, h.log, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"team": team})
+}

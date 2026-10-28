@@ -101,6 +101,21 @@ func (h *Handler) Bookmarks(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"bookmarks": list})
 }
 
+func (h *Handler) BookmarkStatus(w http.ResponseWriter, r *http.Request) {
+	u := httpx.MustUser(r.Context())
+	eventID, err := httpx.PathUUID(r, "id")
+	if err != nil {
+		httpx.Error(w, http.StatusNotFound, "Event not found.")
+		return
+	}
+	bookmarked, err := h.svc.IsBookmarked(r.Context(), u.ID, eventID)
+	if err != nil {
+		httpx.WriteServiceError(w, h.log, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"bookmarked": bookmarked})
+}
+
 func (h *Handler) AddBookmark(w http.ResponseWriter, r *http.Request) {
 	u := httpx.MustUser(r.Context())
 	eventID, err := httpx.PathUUID(r, "id")

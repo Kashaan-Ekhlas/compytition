@@ -55,6 +55,11 @@ type EventFields struct {
 	Rules                string      `json:"rules"`
 	ContactEmail         string      `json:"contact_email"`
 	Location             string      `json:"location"`
+	IsRemote             bool        `json:"is_remote"`
+	Country              string      `json:"country"`
+	State                string      `json:"state"`
+	City                 string      `json:"city"`
+	MergeRegistration    bool        `json:"merge_registration_submission"`
 	MinTeamSize          int16       `json:"min_team_size"`
 	MaxTeamSize          int16       `json:"max_team_size"`
 	RegistrationOpensAt  *time.Time  `json:"registration_opens_at"`
@@ -79,6 +84,11 @@ type EventView struct {
 	Rules                string        `json:"rules"`
 	ContactEmail         string        `json:"contact_email"`
 	Location             string        `json:"location"`
+	IsRemote             bool          `json:"is_remote"`
+	Country              string        `json:"country"`
+	State                string        `json:"state"`
+	City                 string        `json:"city"`
+	MergeRegistration    bool          `json:"merge_registration_submission"`
 	MinTeamSize          int16         `json:"min_team_size"`
 	MaxTeamSize          int16         `json:"max_team_size"`
 	RegistrationOpensAt  *time.Time    `json:"registration_opens_at"`
@@ -99,6 +109,7 @@ type EventView struct {
 	CreatedAt            time.Time     `json:"created_at"`
 	UpdatedAt            time.Time     `json:"updated_at"`
 	FormFields           []FormField   `json:"form_fields,omitempty"`
+	SubmissionFields     []FormField   `json:"submission_fields,omitempty"`
 }
 
 type FormField struct {
@@ -136,6 +147,10 @@ type EventFilters struct {
 	Category  string
 	Format    string
 	RegStatus string
+	Remote    *bool
+	Country   string
+	State     string
+	City      string
 	Limit     int32
 	Offset    int32
 }
@@ -151,6 +166,25 @@ func validateEventFields(in *EventFields) error {
 	in.Rules = strings.TrimSpace(in.Rules)
 	in.ContactEmail = strings.ToLower(strings.TrimSpace(in.ContactEmail))
 	in.Location = strings.TrimSpace(in.Location)
+	in.Country = strings.TrimSpace(in.Country)
+	in.State = strings.TrimSpace(in.State)
+	in.City = strings.TrimSpace(in.City)
+	if in.IsRemote {
+		in.Location = "Remote / Online"
+		in.Country, in.State, in.City = "", "", ""
+	} else {
+		if in.Country == "" {
+			fields["country"] = "Choose a country for in-person events."
+		}
+		parts := make([]string, 0, 3)
+		for _, part := range []string{in.City, in.State, in.Country} {
+			if part != "" {
+				parts = append(parts, part)
+			}
+		}
+		in.Location = strings.Join(parts, ", ")
+	}
+	in.MinTeamSize = 1
 
 	if len(in.Title) < 3 || len(in.Title) > 160 {
 		fields["title"] = "Title must be 3–160 characters."
@@ -171,22 +205,13 @@ func validateEventFields(in *EventFields) error {
 			fields["contact_email"] = "Enter a valid email address."
 		}
 	}
-	if in.MinTeamSize < 1 || in.MinTeamSize > 64 {
-		fields["min_team_size"] = "Minimum team size must be 1–64."
-	}
 	if in.MaxTeamSize < 1 || in.MaxTeamSize > 64 {
 		fields["max_team_size"] = "Maximum team size must be 1–64."
 	}
-	if in.MaxTeamSize < in.MinTeamSize {
-		fields["max_team_size"] = "Maximum must be at least the minimum."
-	}
 	if in.ParticipationFormat == "individual" {
-		if in.MinTeamSize != 1 || in.MaxTeamSize != 1 {
+		if in.MaxTeamSize != 1 {
 			fields["max_team_size"] = "Individual events use a team size of exactly 1."
 		}
-	}
-	if in.ParticipationFormat == "team" && in.MinTeamSize < 2 {
-		fields["min_team_size"] = "Team events need at least 2 people."
 	}
 	if in.RegistrationOpensAt != nil && in.RegistrationClosesAt != nil && !in.RegistrationClosesAt.After(*in.RegistrationOpensAt) {
 		fields["registration_closes_at"] = "Registration must close after it opens."
@@ -272,7 +297,8 @@ func (s *Service) Create(ctx context.Context, organizerID uuid.UUID, in EventFie
 			MinTeamSize: in.MinTeamSize, MaxTeamSize: in.MaxTeamSize,
 			RegistrationOpensAt: in.RegistrationOpensAt, RegistrationClosesAt: in.RegistrationClosesAt,
 			StartsAt: in.StartsAt, EndsAt: in.EndsAt, SubmissionDeadline: in.SubmissionDeadline,
-			Criteria: criteria,
+			Criteria: criteria, IsRemote: in.IsRemote, Country: in.Country, State: in.State,
+			City: in.City, MergeRegistrationSubmission: in.MergeRegistration,
 		})
 		if lastErr == nil {
 			break
@@ -334,7 +360,8 @@ func (s *Service) Update(ctx context.Context, userID, eventID uuid.UUID, in Even
 		MinTeamSize: in.MinTeamSize, MaxTeamSize: in.MaxTeamSize,
 		RegistrationOpensAt: in.RegistrationOpensAt, RegistrationClosesAt: in.RegistrationClosesAt,
 		StartsAt: in.StartsAt, EndsAt: in.EndsAt, SubmissionDeadline: in.SubmissionDeadline,
-		Criteria: criteria,
+		Criteria: criteria, IsRemote: in.IsRemote, Country: in.Country, State: in.State,
+		City: in.City, MergeRegistrationSubmission: in.MergeRegistration,
 	})
 	if err != nil {
 		return nil, err
@@ -437,6 +464,9 @@ func (s *Service) List(ctx context.Context, f EventFilters) ([]EventView, int64,
 	if f.Limit < 1 || f.Limit > 100 {
 		f.Limit = 24
 	}
+	f.Country = strings.TrimSpace(f.Country)
+	f.State = strings.TrimSpace(f.State)
+	f.City = strings.TrimSpace(f.City)
 	var search *string
 	if v := strings.TrimSpace(f.Search); v != "" {
 		if len(v) > 120 {
@@ -466,21 +496,30 @@ func (s *Service) List(ctx context.Context, f EventFilters) ([]EventView, int64,
 	}
 	rows, err := s.store.ListPublishedEvents(ctx, db.ListPublishedEventsParams{
 		Search: search, Category: category, Format: format, RegStatus: regStatus,
-		Lim: f.Limit, Off: f.Offset,
+		Remote: f.Remote, Country: nullString(f.Country), State: nullString(f.State),
+		City: nullString(f.City), Lim: f.Limit, Off: f.Offset,
 	})
 	if err != nil {
 		return nil, 0, err
 	}
 	out := make([]EventView, 0, len(rows))
 	var total int64
+	organizers := map[uuid.UUID]string{}
 	for _, r := range rows {
 		total = r.TotalCount
 		v := eventView(r.ID, r.Slug, r.OrganizerID, r.Title, r.Description, r.Category,
 			r.ParticipationFormat, r.Status, r.Eligibility, r.Rules, r.ContactEmail,
-			r.Location, r.MinTeamSize, r.MaxTeamSize, r.RegistrationOpensAt,
+			r.Location, r.IsRemote, r.Country, r.State, r.City, r.MergeRegistrationSubmission,
+			r.MinTeamSize, r.MaxTeamSize, r.RegistrationOpensAt,
 			r.RegistrationClosesAt, r.StartsAt, r.EndsAt, r.SubmissionDeadline,
 			r.Criteria, r.JudgingConfig, r.JudgingStatus, r.ResultsPublishedAt,
 			r.CreatedAt, r.UpdatedAt)
+		if name, ok := organizers[r.OrganizerID]; ok {
+			v.OrganizerUsername = name
+		} else if u, err := s.store.GetUserByID(ctx, r.OrganizerID); err == nil {
+			organizers[r.OrganizerID] = u.Username
+			v.OrganizerUsername = u.Username
+		}
 		out = append(out, v)
 	}
 	return out, total, nil
@@ -533,7 +572,8 @@ func (s *Service) hydrate(ctx context.Context, viewerID *uuid.UUID, row db.GetEv
 	}
 	v := eventView(row.ID, row.Slug, row.OrganizerID, row.Title, row.Description, row.Category,
 		row.ParticipationFormat, row.Status, row.Eligibility, row.Rules, row.ContactEmail,
-		row.Location, row.MinTeamSize, row.MaxTeamSize, row.RegistrationOpensAt,
+		row.Location, row.IsRemote, row.Country, row.State, row.City, row.MergeRegistrationSubmission,
+		row.MinTeamSize, row.MaxTeamSize, row.RegistrationOpensAt,
 		row.RegistrationClosesAt, row.StartsAt, row.EndsAt, row.SubmissionDeadline,
 		row.Criteria, row.JudgingConfig, row.JudgingStatus, row.ResultsPublishedAt,
 		row.CreatedAt, row.UpdatedAt)
@@ -546,11 +586,16 @@ func (s *Service) hydrate(ctx context.Context, viewerID *uuid.UUID, row db.GetEv
 	v.RegistrationCount = regCount
 	v.SubmissionCount = subCount
 	if includeFields {
-		fields, err := s.store.ListFormFields(ctx, row.ID)
+		fields, err := s.store.ListFormFields(ctx, db.ListFormFieldsParams{EventID: row.ID, FormKind: "registration"})
 		if err != nil {
 			return nil, err
 		}
 		v.FormFields = formFieldViews(fields)
+		submissionFields, err := s.store.ListFormFields(ctx, db.ListFormFieldsParams{EventID: row.ID, FormKind: "submission"})
+		if err != nil {
+			return nil, err
+		}
+		v.SubmissionFields = formFieldViews(submissionFields)
 	}
 	if viewerID != nil {
 		canManage, _ := s.store.CanManageEvent(ctx, db.CanManageEventParams{OrganizerID: *viewerID, ID: row.ID})
@@ -573,7 +618,8 @@ func (s *Service) ListHosted(ctx context.Context, userID uuid.UUID) ([]EventView
 	for _, r := range rows {
 		v := eventView(r.ID, r.Slug, r.OrganizerID, r.Title, r.Description, r.Category,
 			r.ParticipationFormat, r.Status, r.Eligibility, r.Rules, r.ContactEmail,
-			r.Location, r.MinTeamSize, r.MaxTeamSize, r.RegistrationOpensAt,
+			r.Location, r.IsRemote, r.Country, r.State, r.City, r.MergeRegistrationSubmission,
+			r.MinTeamSize, r.MaxTeamSize, r.RegistrationOpensAt,
 			r.RegistrationClosesAt, r.StartsAt, r.EndsAt, r.SubmissionDeadline,
 			r.Criteria, r.JudgingConfig, r.JudgingStatus, r.ResultsPublishedAt,
 			r.CreatedAt, r.UpdatedAt)
@@ -596,7 +642,8 @@ func (s *Service) ListForJudge(ctx context.Context, userID uuid.UUID) ([]EventVi
 	for _, r := range rows {
 		v := eventView(r.ID, r.Slug, r.OrganizerID, r.Title, r.Description, r.Category,
 			r.ParticipationFormat, r.Status, r.Eligibility, r.Rules, r.ContactEmail,
-			r.Location, r.MinTeamSize, r.MaxTeamSize, r.RegistrationOpensAt,
+			r.Location, r.IsRemote, r.Country, r.State, r.City, r.MergeRegistrationSubmission,
+			r.MinTeamSize, r.MaxTeamSize, r.RegistrationOpensAt,
 			r.RegistrationClosesAt, r.StartsAt, r.EndsAt, r.SubmissionDeadline,
 			r.Criteria, r.JudgingConfig, r.JudgingStatus, r.ResultsPublishedAt,
 			r.CreatedAt, r.UpdatedAt)
@@ -608,9 +655,15 @@ func (s *Service) ListForJudge(ctx context.Context, userID uuid.UUID) ([]EventVi
 
 // ── Form builder ───────────────────────────────────────────────────────────
 
-func (s *Service) ReplaceForm(ctx context.Context, userID, eventID uuid.UUID, inputs []FormFieldInput) ([]FormField, error) {
+func (s *Service) ReplaceForm(ctx context.Context, userID, eventID uuid.UUID, kind string, inputs []FormFieldInput) ([]FormField, error) {
 	if err := s.requireManage(ctx, userID, eventID); err != nil {
 		return nil, err
+	}
+	if kind == "" {
+		kind = "registration"
+	}
+	if kind != "registration" && kind != "submission" {
+		return nil, apperr.Invalid("kind", "Form kind must be registration or submission.")
 	}
 	ev, err := s.store.GetEventByID(ctx, eventID)
 	if err != nil {
@@ -624,7 +677,7 @@ func (s *Service) ReplaceForm(ctx context.Context, userID, eventID uuid.UUID, in
 	}
 	created := make([]db.EventFormField, 0, len(inputs))
 	err = s.store.InTx(ctx, func(q *db.Queries) error {
-		if err := q.DeleteFormFieldsForEvent(ctx, eventID); err != nil {
+		if err := q.DeleteFormFieldsForEvent(ctx, db.DeleteFormFieldsForEventParams{EventID: eventID, FormKind: kind}); err != nil {
 			return err
 		}
 		for i, in := range inputs {
@@ -635,7 +688,7 @@ func (s *Service) ReplaceForm(ctx context.Context, userID, eventID uuid.UUID, in
 			f, err := q.CreateFormField(ctx, db.CreateFormFieldParams{
 				EventID: eventID, Label: strings.TrimSpace(in.Label), FieldType: in.FieldType,
 				Required: in.Required, Options: options, HelpText: strings.TrimSpace(in.HelpText),
-				Position: int32(i),
+				Position: int32(i), FormKind: kind,
 			})
 			if err != nil {
 				return err
@@ -650,7 +703,13 @@ func (s *Service) ReplaceForm(ctx context.Context, userID, eventID uuid.UUID, in
 	return formFieldViews(created), nil
 }
 
-func (s *Service) FormFields(ctx context.Context, viewerID *uuid.UUID, eventID uuid.UUID) ([]FormField, error) {
+func (s *Service) FormFields(ctx context.Context, viewerID *uuid.UUID, eventID uuid.UUID, kind string) ([]FormField, error) {
+	if kind == "" {
+		kind = "registration"
+	}
+	if kind != "registration" && kind != "submission" {
+		return nil, apperr.Invalid("kind", "Form kind must be registration or submission.")
+	}
 	ev, err := s.store.GetEventByID(ctx, eventID)
 	if err != nil {
 		return nil, apperr.ErrNotFound
@@ -670,7 +729,7 @@ func (s *Service) FormFields(ctx context.Context, viewerID *uuid.UUID, eventID u
 			}
 		}
 	}
-	fields, err := s.store.ListFormFields(ctx, eventID)
+	fields, err := s.store.ListFormFields(ctx, db.ListFormFieldsParams{EventID: eventID, FormKind: kind})
 	if err != nil {
 		return nil, err
 	}
@@ -679,13 +738,13 @@ func (s *Service) FormFields(ctx context.Context, viewerID *uuid.UUID, eventID u
 
 // ── Staff (judges / co-organizers) ─────────────────────────────────────────
 
-func (s *Service) InviteStaff(ctx context.Context, userID, eventID uuid.UUID, email, role string) (*StaffView, error) {
+func (s *Service) InviteStaff(ctx context.Context, userID, eventID uuid.UUID, identifier, role string) (*StaffView, error) {
 	if err := s.requireManage(ctx, userID, eventID); err != nil {
 		return nil, err
 	}
-	email = strings.ToLower(strings.TrimSpace(email))
-	if _, err := mail.ParseAddress(email); err != nil {
-		return nil, apperr.Invalid("email", "Enter a valid email address.")
+	identifier = strings.TrimPrefix(strings.TrimSpace(identifier), "@")
+	if identifier == "" {
+		return nil, apperr.Invalid("email", "Enter an email address or username.")
 	}
 	if role != "judge" && role != "co_organizer" {
 		return nil, apperr.Invalid("role", "Role must be judge or co_organizer.")
@@ -700,35 +759,65 @@ func (s *Service) InviteStaff(ctx context.Context, userID, eventID uuid.UUID, em
 	if role == "judge" && ev.JudgingStatus != "setup" {
 		return nil, apperr.Invalid("judging", "Judging has already started; judges cannot be added now.")
 	}
+
 	var invitedUserID *uuid.UUID
-	if u, err := s.store.GetUserByEmail(ctx, email); err == nil {
-		if u.ID == userID {
-			return nil, apperr.Invalid("email", "You are already on this event.")
+	var email string
+	if strings.Contains(identifier, "@") {
+		email = strings.ToLower(identifier)
+		if _, err := mail.ParseAddress(email); err != nil {
+			return nil, apperr.Invalid("email", "Enter a valid email address.")
+		}
+		if u, err := s.store.GetUserByEmail(ctx, email); err == nil {
+			invitedUserID = &u.ID
+		}
+	} else {
+		u, err := s.store.GetUserByUsername(ctx, identifier)
+		if err != nil {
+			return nil, apperr.Invalid("username", "username not found")
 		}
 		invitedUserID = &u.ID
+		email = u.Email
 	}
-	token := randomHex(24)
+	if invitedUserID != nil && *invitedUserID == userID {
+		return nil, apperr.Invalid("email", "You are already on this event.")
+	}
+
+	var token *string
+	if invitedUserID == nil {
+		value := randomHex(24)
+		token = &value
+	}
 	staff, err := s.store.CreateStaffInvite(ctx, db.CreateStaffInviteParams{
 		EventID: eventID, UserID: invitedUserID, Email: email, Role: role,
-		InviteToken: &token, InvitedBy: userID,
+		InviteToken: token, InvitedBy: userID,
 	})
 	if err != nil {
 		return nil, err
 	}
+	status := staff.Status
+	acceptURL := ""
 	if invitedUserID != nil {
+		// An existing account is added immediately. Missing accounts receive a
+		// link that accepts the invite after they finish registration.
+		if err := s.store.UpdateStaffStatus(ctx, db.UpdateStaffStatusParams{ID: staff.ID, Status: "accepted"}); err != nil {
+			return nil, err
+		}
+		status = "accepted"
 		_, _ = s.store.CreateNotification(ctx, db.CreateNotificationParams{
-			UserID: *invitedUserID, Kind: "staff_invite",
-			Title: "You're invited to " + ev.Title,
-			Body:  "Accept the " + role + " invite to join the event.",
-			Link:  "/invites/staff/" + token,
+			UserID: *invitedUserID, Kind: "staff_added",
+			Title: "You were added to " + ev.Title,
+			Body:  "You are now a " + role + " for this event.",
+			Link:  "/events/" + eventID.String(),
 		})
+	} else {
+		acceptURL = "/invites/staff/" + *token
 	}
 	_ = s.store.CreateAuditEntry(ctx, db.CreateAuditEntryParams{
 		ActorID: &userID, EventID: &eventID, Action: "staff.invited", Metadata: []byte(`{}`),
 	})
 	return &StaffView{
 		ID: staff.ID, EventID: staff.EventID, Email: staff.Email, Role: staff.Role,
-		Status: staff.Status, UserID: staff.UserID, AcceptURL: "/invites/staff/" + token,
+		Status: status, UserID: staff.UserID, AcceptURL: acceptURL,
 		CreatedAt: staff.CreatedAt,
 	}, nil
 }
@@ -830,40 +919,6 @@ func (s *Service) GetJudgingConfig(ctx context.Context, userID uuid.UUID, eventI
 	return parseJudgingConfig(ev.JudgingConfig), parseCriteria(ev.Criteria), nil
 }
 
-func (s *Service) SetJudgingConfig(ctx context.Context, userID, eventID uuid.UUID, cfgIn JudgingConfig) (JudgingConfig, error) {
-	if err := s.requireManage(ctx, userID, eventID); err != nil {
-		return JudgingConfig{}, err
-	}
-	ev, err := s.store.GetEventByID(ctx, eventID)
-	if err != nil {
-		return JudgingConfig{}, apperr.ErrNotFound
-	}
-	if ev.JudgingStatus == "locked" || ev.JudgingStatus == "published" {
-		return JudgingConfig{}, apperr.ErrConflict
-	}
-	fields := map[string]string{}
-	if cfgIn.TargetComparisons < 2 || cfgIn.TargetComparisons > 50 {
-		fields["target_comparisons"] = "Target comparisons per submission must be 2–50."
-	}
-	if cfgIn.JudgeBudget < 2 || cfgIn.JudgeBudget > 500 {
-		fields["judge_budget"] = "Comparisons per judge must be 2–500."
-	}
-	if cfgIn.AnchorCount < 1 || cfgIn.AnchorCount > 50 {
-		fields["anchor_count"] = "Anchor submissions must be 1–50."
-	}
-	if len(fields) > 0 {
-		return JudgingConfig{}, apperr.InvalidFields(fields)
-	}
-	raw, err := json.Marshal(cfgIn)
-	if err != nil {
-		return JudgingConfig{}, err
-	}
-	if err := s.store.UpdateEventJudgingConfig(ctx, db.UpdateEventJudgingConfigParams{ID: eventID, JudgingConfig: raw}); err != nil {
-		return JudgingConfig{}, err
-	}
-	return cfgIn, nil
-}
-
 func (s *Service) CanManage(ctx context.Context, userID, eventID uuid.UUID) (bool, error) {
 	return s.store.CanManageEvent(ctx, db.CanManageEventParams{OrganizerID: userID, ID: eventID})
 }
@@ -881,12 +936,21 @@ func (s *Service) requireManage(ctx context.Context, userID, eventID uuid.UUID) 
 
 // ── Mapping helpers ────────────────────────────────────────────────────────
 
-func eventView(id uuid.UUID, slug string, organizerID uuid.UUID, title, description, category, format, status, eligibility, rules, contactEmail, location string, minTeam, maxTeam int16, regOpens, regCloses, startsAt, endsAt, submissionDeadline *time.Time, criteriaRaw, judgingRaw []byte, judgingStatus string, resultsPublishedAt *time.Time, createdAt, updatedAt time.Time) EventView {
+func nullString(value string) *string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	return &value
+}
+
+func eventView(id uuid.UUID, slug string, organizerID uuid.UUID, title, description, category, format, status, eligibility, rules, contactEmail, location string, isRemote bool, country, state, city string, mergeRegistration bool, minTeam, maxTeam int16, regOpens, regCloses, startsAt, endsAt, submissionDeadline *time.Time, criteriaRaw, judgingRaw []byte, judgingStatus string, resultsPublishedAt *time.Time, createdAt, updatedAt time.Time) EventView {
 	return EventView{
 		ID: id, Slug: slug, OrganizerID: organizerID, Title: title, Description: description,
 		Category: category, ParticipationFormat: format, Status: status,
 		Eligibility: eligibility, Rules: rules, ContactEmail: contactEmail, Location: location,
-		MinTeamSize: minTeam, MaxTeamSize: maxTeam,
+		IsRemote: isRemote, Country: country, State: state, City: city,
+		MergeRegistration: mergeRegistration,
+		MinTeamSize:       minTeam, MaxTeamSize: maxTeam,
 		RegistrationOpensAt: regOpens, RegistrationClosesAt: regCloses,
 		StartsAt: startsAt, EndsAt: endsAt, SubmissionDeadline: submissionDeadline,
 		Criteria: parseCriteria(criteriaRaw), JudgingStatus: judgingStatus,
@@ -899,7 +963,7 @@ func eventView(id uuid.UUID, slug string, organizerID uuid.UUID, title, descript
 func viewFromCreate(r db.CreateEventRow) EventView {
 	return eventView(r.ID, r.Slug, r.OrganizerID, r.Title, r.Description, r.Category,
 		r.ParticipationFormat, r.Status, r.Eligibility, r.Rules, r.ContactEmail, r.Location,
-		r.MinTeamSize, r.MaxTeamSize, r.RegistrationOpensAt, r.RegistrationClosesAt,
+		r.IsRemote, r.Country, r.State, r.City, r.MergeRegistrationSubmission, r.MinTeamSize, r.MaxTeamSize, r.RegistrationOpensAt, r.RegistrationClosesAt,
 		r.StartsAt, r.EndsAt, r.SubmissionDeadline, r.Criteria, r.JudgingConfig,
 		r.JudgingStatus, r.ResultsPublishedAt, r.CreatedAt, r.UpdatedAt)
 }
@@ -907,7 +971,7 @@ func viewFromCreate(r db.CreateEventRow) EventView {
 func viewFromUpdate(r db.UpdateEventRow) EventView {
 	return eventView(r.ID, r.Slug, r.OrganizerID, r.Title, r.Description, r.Category,
 		r.ParticipationFormat, r.Status, r.Eligibility, r.Rules, r.ContactEmail, r.Location,
-		r.MinTeamSize, r.MaxTeamSize, r.RegistrationOpensAt, r.RegistrationClosesAt,
+		r.IsRemote, r.Country, r.State, r.City, r.MergeRegistrationSubmission, r.MinTeamSize, r.MaxTeamSize, r.RegistrationOpensAt, r.RegistrationClosesAt,
 		r.StartsAt, r.EndsAt, r.SubmissionDeadline, r.Criteria, r.JudgingConfig,
 		r.JudgingStatus, r.ResultsPublishedAt, r.CreatedAt, r.UpdatedAt)
 }

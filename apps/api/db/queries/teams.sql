@@ -48,6 +48,12 @@ DELETE FROM teams WHERE id = $1;
 -- name: UpdateTeamOwner :exec
 UPDATE teams SET owner_id = $2, updated_at = now() WHERE id = $1;
 
+-- name: SetTeamInviteToken :exec
+UPDATE teams SET invite_token = $2, updated_at = now() WHERE id = $1;
+
+-- name: GetTeamByInviteToken :one
+SELECT * FROM teams WHERE invite_token = $1;
+
 -- name: AddTeamMember :exec
 INSERT INTO team_members (event_id, team_id, user_id) VALUES ($1, $2, $3);
 

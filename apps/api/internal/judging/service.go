@@ -18,6 +18,7 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -41,17 +42,18 @@ func NewService(store *db.Store, cfg *config.Config, log *slog.Logger) *Service 
 }
 
 type Submission struct {
-	ID              uuid.UUID  `json:"id"`
-	Title           string     `json:"title"`
-	Description     string     `json:"description"`
-	RepoURL         string     `json:"repo_url"`
-	DemoURL         string     `json:"demo_url"`
-	FileURL         string     `json:"file_url"`
-	TeamID          *uuid.UUID `json:"team_id"`
-	TeamName        string     `json:"team_name,omitempty"`
-	CreatorUsername string     `json:"creator_username"`
-	CreatorName     string     `json:"creator_name,omitempty"`
-	CreatedBy       uuid.UUID  `json:"created_by"`
+	ID              uuid.UUID      `json:"id"`
+	Title           string         `json:"title"`
+	Description     string         `json:"description"`
+	RepoURL         string         `json:"repo_url"`
+	DemoURL         string         `json:"demo_url"`
+	FileURL         string         `json:"file_url"`
+	Answers         map[string]any `json:"answers"`
+	TeamID          *uuid.UUID     `json:"team_id"`
+	TeamName        string         `json:"team_name,omitempty"`
+	CreatorUsername string         `json:"creator_username"`
+	CreatorName     string         `json:"creator_name,omitempty"`
+	CreatedBy       uuid.UUID      `json:"created_by"`
 }
 
 type JudgeSummary struct {
@@ -178,6 +180,7 @@ func (s *Service) Preview(ctx context.Context, userID, eventID uuid.UUID) (*Prev
 	if err != nil {
 		return nil, err
 	}
+	cfg = deriveJudgingConfig(len(subs), len(judges))
 
 	plan, err := s.buildPlan(ctx, eventID, ev, subs, judges, cfg)
 	if err != nil {
@@ -195,6 +198,9 @@ func (s *Service) Assign(ctx context.Context, userID, eventID uuid.UUID) (*Assig
 	if ev.JudgingStatus != "setup" {
 		return nil, apperr.Invalid("judging", "Comparisons can only be regenerated before judging starts.")
 	}
+	if err := judgingDeadlineOpen(ev); err != nil {
+		return nil, err
+	}
 	subs, err := s.loadSubmissions(ctx, eventID)
 	if err != nil {
 		return nil, err
@@ -207,6 +213,7 @@ func (s *Service) Assign(ctx context.Context, userID, eventID uuid.UUID) (*Assig
 	if err != nil {
 		return nil, err
 	}
+	cfg = deriveJudgingConfig(len(subs), len(judges))
 	plan, err := s.buildPlan(ctx, eventID, ev, subs, judges, cfg)
 	if err != nil {
 		return nil, err
@@ -253,6 +260,9 @@ func (s *Service) Start(ctx context.Context, userID, eventID uuid.UUID) error {
 	}
 	if ev.JudgingStatus != "setup" {
 		return apperr.Invalid("judging", "Judging has already started.")
+	}
+	if err := judgingDeadlineOpen(ev); err != nil {
+		return err
 	}
 	counts, err := s.store.CountPairsForEvent(ctx, eventID)
 	if err != nil {
@@ -707,7 +717,8 @@ func (s *Service) loadSubmissions(ctx context.Context, eventID uuid.UUID) ([]Sub
 		out = append(out, Submission{
 			ID: r.ID, Title: r.Title, Description: r.Description,
 			RepoURL: r.RepoUrl, DemoURL: r.DemoUrl, FileURL: r.FileUrl,
-			TeamID: r.TeamID, TeamName: deref(r.TeamName),
+			Answers: unmarshalAnswers(r.Answers),
+			TeamID:  r.TeamID, TeamName: deref(r.TeamName),
 			CreatorUsername: r.CreatorUsername, CreatorName: deref(r.CreatorName),
 			CreatedBy: r.CreatedBy,
 		})
@@ -733,6 +744,53 @@ func (s *Service) loadJudges(ctx context.Context, eventID uuid.UUID) ([]JudgeSum
 		out = append(out, summary)
 	}
 	return out, nil
+}
+
+func deriveJudgingConfig(subCount, judgeCount int) events.JudgingConfig {
+	if subCount < 2 {
+		subCount = 2
+	}
+	if judgeCount < 1 {
+		judgeCount = 1
+	}
+	target := 6
+	switch {
+	case subCount <= 3:
+		target = 3
+	case subCount <= 8:
+		target = 5
+	case subCount <= 20:
+		target = 6
+	default:
+		target = 8
+	}
+	budget := (target*subCount + judgeCount - 1) / judgeCount
+	if budget < 2 {
+		budget = 2
+	}
+	if budget > 500 {
+		budget = 500
+	}
+	anchors := target / 2
+	if anchors < 1 {
+		anchors = 1
+	}
+	if anchors > subCount {
+		anchors = subCount
+	}
+	return events.JudgingConfig{
+		TargetComparisons: target, JudgeBudget: budget, AnchorCount: anchors,
+	}
+}
+
+func judgingDeadlineOpen(ev db.GetEventByIDRow) error {
+	if ev.SubmissionDeadline == nil {
+		return apperr.Invalid("submission_deadline", "Set a submission deadline before judging.")
+	}
+	if time.Now().Before(*ev.SubmissionDeadline) {
+		return apperr.Invalid("judging", "Judging opens after the submission deadline.")
+	}
+	return nil
 }
 
 func (s *Service) config(ev db.GetEventByIDRow) (events.JudgingConfig, []events.Criterion, error) {
@@ -1002,6 +1060,14 @@ func canonicalB(a, b uuid.UUID) uuid.UUID {
 		return b
 	}
 	return a
+}
+
+func unmarshalAnswers(raw []byte) map[string]any {
+	out := map[string]any{}
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &out)
+	}
+	return out
 }
 
 func deref(s *string) string {

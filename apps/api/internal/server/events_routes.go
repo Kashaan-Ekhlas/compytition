@@ -28,5 +28,4 @@ func registerEventRoutes(mux *http.ServeMux, api *API) {
 	mux.Handle("DELETE /api/v1/events/{id}/staff/{staffId}", RequireAuth(http.HandlerFunc(h.RemoveStaff)))
 	mux.Handle("POST /api/v1/invites/staff/{token}/accept", RequireAuth(http.HandlerFunc(h.AcceptStaffInvite)))
 	mux.Handle("GET /api/v1/events/{id}/judging-config", RequireAuth(http.HandlerFunc(h.GetJudgingConfig)))
-	mux.Handle("PUT /api/v1/events/{id}/judging-config", RequireAuth(http.HandlerFunc(h.SetJudgingConfig)))
 }

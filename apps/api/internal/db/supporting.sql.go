@@ -259,6 +259,7 @@ SELECT e.id, e.slug, e.organizer_id, e.title, e.description, e.category,
        e.registration_closes_at, e.starts_at, e.ends_at, e.submission_deadline,
        e.criteria, e.judging_config, e.judging_status, e.judging_locked_at,
        e.results_published_at, e.created_at, e.updated_at,
+    e.is_remote, e.country, e.state, e.city, e.merge_registration_submission,
        b.created_at AS bookmarked_at
 FROM bookmarks b
 JOIN events e ON e.id = b.event_id
@@ -267,33 +268,38 @@ ORDER BY b.created_at DESC
 `
 
 type ListBookmarkedEventsRow struct {
-	ID                   uuid.UUID  `json:"id"`
-	Slug                 string     `json:"slug"`
-	OrganizerID          uuid.UUID  `json:"organizer_id"`
-	Title                string     `json:"title"`
-	Description          string     `json:"description"`
-	Category             string     `json:"category"`
-	ParticipationFormat  string     `json:"participation_format"`
-	Status               string     `json:"status"`
-	Eligibility          string     `json:"eligibility"`
-	Rules                string     `json:"rules"`
-	ContactEmail         string     `json:"contact_email"`
-	Location             string     `json:"location"`
-	MinTeamSize          int16      `json:"min_team_size"`
-	MaxTeamSize          int16      `json:"max_team_size"`
-	RegistrationOpensAt  *time.Time `json:"registration_opens_at"`
-	RegistrationClosesAt *time.Time `json:"registration_closes_at"`
-	StartsAt             *time.Time `json:"starts_at"`
-	EndsAt               *time.Time `json:"ends_at"`
-	SubmissionDeadline   *time.Time `json:"submission_deadline"`
-	Criteria             []byte     `json:"criteria"`
-	JudgingConfig        []byte     `json:"judging_config"`
-	JudgingStatus        string     `json:"judging_status"`
-	JudgingLockedAt      *time.Time `json:"judging_locked_at"`
-	ResultsPublishedAt   *time.Time `json:"results_published_at"`
-	CreatedAt            time.Time  `json:"created_at"`
-	UpdatedAt            time.Time  `json:"updated_at"`
-	BookmarkedAt         time.Time  `json:"bookmarked_at"`
+	ID                          uuid.UUID  `json:"id"`
+	Slug                        string     `json:"slug"`
+	OrganizerID                 uuid.UUID  `json:"organizer_id"`
+	Title                       string     `json:"title"`
+	Description                 string     `json:"description"`
+	Category                    string     `json:"category"`
+	ParticipationFormat         string     `json:"participation_format"`
+	Status                      string     `json:"status"`
+	Eligibility                 string     `json:"eligibility"`
+	Rules                       string     `json:"rules"`
+	ContactEmail                string     `json:"contact_email"`
+	Location                    string     `json:"location"`
+	MinTeamSize                 int16      `json:"min_team_size"`
+	MaxTeamSize                 int16      `json:"max_team_size"`
+	RegistrationOpensAt         *time.Time `json:"registration_opens_at"`
+	RegistrationClosesAt        *time.Time `json:"registration_closes_at"`
+	StartsAt                    *time.Time `json:"starts_at"`
+	EndsAt                      *time.Time `json:"ends_at"`
+	SubmissionDeadline          *time.Time `json:"submission_deadline"`
+	Criteria                    []byte     `json:"criteria"`
+	JudgingConfig               []byte     `json:"judging_config"`
+	JudgingStatus               string     `json:"judging_status"`
+	JudgingLockedAt             *time.Time `json:"judging_locked_at"`
+	ResultsPublishedAt          *time.Time `json:"results_published_at"`
+	CreatedAt                   time.Time  `json:"created_at"`
+	UpdatedAt                   time.Time  `json:"updated_at"`
+	IsRemote                    bool       `json:"is_remote"`
+	Country                     string     `json:"country"`
+	State                       string     `json:"state"`
+	City                        string     `json:"city"`
+	MergeRegistrationSubmission bool       `json:"merge_registration_submission"`
+	BookmarkedAt                time.Time  `json:"bookmarked_at"`
 }
 
 func (q *Queries) ListBookmarkedEvents(ctx context.Context, userID uuid.UUID) ([]ListBookmarkedEventsRow, error) {
@@ -332,6 +338,11 @@ func (q *Queries) ListBookmarkedEvents(ctx context.Context, userID uuid.UUID) ([
 			&i.ResultsPublishedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.IsRemote,
+			&i.Country,
+			&i.State,
+			&i.City,
+			&i.MergeRegistrationSubmission,
 			&i.BookmarkedAt,
 		); err != nil {
 			return nil, err

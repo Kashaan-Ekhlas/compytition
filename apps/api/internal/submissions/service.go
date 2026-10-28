@@ -2,9 +2,11 @@ package submissions
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -28,34 +30,36 @@ func NewService(store *db.Store, cfg *config.Config, log *slog.Logger) *Service 
 }
 
 type Input struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	RepoURL     string `json:"repo_url"`
-	DemoURL     string `json:"demo_url"`
-	FileURL     string `json:"file_url"`
-	Status      string `json:"status"`
+	Title       string         `json:"title"`
+	Description string         `json:"description"`
+	RepoURL     string         `json:"repo_url"`
+	DemoURL     string         `json:"demo_url"`
+	FileURL     string         `json:"file_url"`
+	Status      string         `json:"status"`
+	Answers     map[string]any `json:"answers"`
 }
 
 type View struct {
-	ID                 uuid.UUID  `json:"id"`
-	EventID            uuid.UUID  `json:"event_id"`
-	EventTitle         string     `json:"event_title,omitempty"`
-	EventSlug          string     `json:"event_slug,omitempty"`
-	SubmissionDeadline *time.Time `json:"submission_deadline,omitempty"`
-	RegistrationID     *uuid.UUID `json:"registration_id"`
-	TeamID             *uuid.UUID `json:"team_id"`
-	TeamName           string     `json:"team_name,omitempty"`
-	CreatedBy          uuid.UUID  `json:"created_by"`
-	CreatorUsername    string     `json:"creator_username,omitempty"`
-	CreatorName        string     `json:"creator_name,omitempty"`
-	Title              string     `json:"title"`
-	Description        string     `json:"description"`
-	RepoURL            string     `json:"repo_url"`
-	DemoURL            string     `json:"demo_url"`
-	FileURL            string     `json:"file_url"`
-	Status             string     `json:"status"`
-	CreatedAt          time.Time  `json:"created_at"`
-	UpdatedAt          time.Time  `json:"updated_at"`
+	ID                 uuid.UUID      `json:"id"`
+	EventID            uuid.UUID      `json:"event_id"`
+	EventTitle         string         `json:"event_title,omitempty"`
+	EventSlug          string         `json:"event_slug,omitempty"`
+	SubmissionDeadline *time.Time     `json:"submission_deadline,omitempty"`
+	RegistrationID     *uuid.UUID     `json:"registration_id"`
+	TeamID             *uuid.UUID     `json:"team_id"`
+	TeamName           string         `json:"team_name,omitempty"`
+	CreatedBy          uuid.UUID      `json:"created_by"`
+	CreatorUsername    string         `json:"creator_username,omitempty"`
+	CreatorName        string         `json:"creator_name,omitempty"`
+	Title              string         `json:"title"`
+	Description        string         `json:"description"`
+	RepoURL            string         `json:"repo_url"`
+	DemoURL            string         `json:"demo_url"`
+	FileURL            string         `json:"file_url"`
+	Answers            map[string]any `json:"answers"`
+	Status             string         `json:"status"`
+	CreatedAt          time.Time      `json:"created_at"`
+	UpdatedAt          time.Time      `json:"updated_at"`
 }
 
 func (s *Service) Create(ctx context.Context, userID, eventID uuid.UUID, in Input) (*View, error) {
@@ -67,6 +71,9 @@ func (s *Service) Create(ctx context.Context, userID, eventID uuid.UUID, in Inpu
 		return nil, apperr.ErrNotFound
 	}
 	if err := submissionOpen(ev); err != nil {
+		return nil, err
+	}
+	if err := s.validateAnswers(ctx, eventID, in.Answers); err != nil {
 		return nil, err
 	}
 	reg, err := s.store.GetRegistrationForEventUser(ctx, db.GetRegistrationForEventUserParams{EventID: eventID, UserID: userID})
@@ -86,6 +93,7 @@ func (s *Service) Create(ctx context.Context, userID, eventID uuid.UUID, in Inpu
 		EventID: eventID, RegistrationID: &reg.ID, TeamID: reg.TeamID, CreatedBy: userID,
 		Title: in.Title, Description: in.Description, RepoUrl: in.RepoURL,
 		DemoUrl: in.DemoURL, FileUrl: in.FileURL, Status: normalizedStatus(in.Status),
+		Answers: marshalAnswers(in.Answers),
 	})
 	if err != nil {
 		if isUnique(err) {
@@ -126,10 +134,13 @@ func (s *Service) Update(ctx context.Context, userID, submissionID uuid.UUID, in
 	if err := submissionOpen(ev); err != nil {
 		return nil, err
 	}
+	if err := s.validateAnswers(ctx, sub.EventID, in.Answers); err != nil {
+		return nil, err
+	}
 	updated, err := s.store.UpdateSubmission(ctx, db.UpdateSubmissionParams{
 		ID: submissionID, Title: in.Title, Description: in.Description,
 		RepoUrl: in.RepoURL, DemoUrl: in.DemoURL, FileUrl: in.FileURL,
-		Status: normalizedStatus(in.Status),
+		Status: normalizedStatus(in.Status), Answers: marshalAnswers(in.Answers),
 	})
 	if err != nil {
 		return nil, err
@@ -183,6 +194,7 @@ func (s *Service) ListMine(ctx context.Context, userID uuid.UUID) ([]View, error
 			TeamID: r.TeamID, TeamName: deref(r.TeamName), CreatedBy: r.CreatedBy,
 			Title: r.Title, Description: r.Description, RepoURL: r.RepoUrl,
 			DemoURL: r.DemoUrl, FileURL: r.FileUrl, Status: r.Status,
+			Answers:   unmarshalAnswers(r.Answers),
 			CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 		})
 	}
@@ -221,6 +233,7 @@ func (s *Service) ListForEvent(ctx context.Context, userID, eventID uuid.UUID, s
 			TeamName: deref(r.TeamName), CreatedBy: r.CreatedBy, CreatorUsername: r.CreatorUsername,
 			CreatorName: deref(r.CreatorName), Title: r.Title, Description: r.Description,
 			RepoURL: r.RepoUrl, DemoURL: r.DemoUrl, FileURL: r.FileUrl, Status: r.Status,
+			Answers:   unmarshalAnswers(r.Answers),
 			CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 		})
 	}
@@ -237,6 +250,114 @@ func (s *Service) canEdit(ctx context.Context, userID uuid.UUID, sub db.Submissi
 		}
 	}
 	return apperr.ErrNotFound
+}
+
+// validateAnswers checks custom submission answers against the event's
+// submission form. Keys are field IDs; unknown keys usually mean the form was
+// edited in another tab, so asking the participant to reload is safest.
+func (s *Service) validateAnswers(ctx context.Context, eventID uuid.UUID, answers map[string]any) error {
+	fields, err := s.store.ListFormFields(ctx, db.ListFormFieldsParams{EventID: eventID, FormKind: "submission"})
+	if err != nil {
+		return err
+	}
+	if answers == nil {
+		answers = map[string]any{}
+	}
+	if len(answers) > 80 {
+		return apperr.Invalid("answers", "Too many answers.")
+	}
+	known := make(map[string]db.EventFormField, len(fields))
+	for _, f := range fields {
+		known[f.ID.String()] = f
+	}
+	for key := range answers {
+		if _, ok := known[key]; !ok {
+			return apperr.Invalid("answers", "The form has changed. Reload and try again.")
+		}
+	}
+	errs := map[string]string{}
+	for id, f := range known {
+		val, present := answers[id]
+		empty := !present || val == nil || val == "" || isEmptySlice(val)
+		if f.Required && empty {
+			errs[id] = "This field is required."
+			continue
+		}
+		if empty {
+			continue
+		}
+		switch f.FieldType {
+		case "text", "long_text":
+			str, ok := val.(string)
+			if !ok {
+				errs[id] = "Enter text."
+				continue
+			}
+			if len(str) > 5000 {
+				errs[id] = "Keep this under 5,000 characters."
+			}
+		case "url", "file":
+			str, ok := val.(string)
+			if !ok || !validURL(str) {
+				errs[id] = "Enter a valid http(s) URL."
+			}
+		case "number":
+			switch n := val.(type) {
+			case float64:
+			case string:
+				if _, err := strconv.ParseFloat(n, 64); err != nil {
+					errs[id] = "Enter a number."
+				}
+			default:
+				errs[id] = "Enter a number."
+			}
+		case "select":
+			str, ok := val.(string)
+			var options []string
+			_ = json.Unmarshal(f.Options, &options)
+			if !ok || !contains(options, str) {
+				errs[id] = "Choose one of the options."
+			}
+		case "multi_select":
+			arr, ok := val.([]any)
+			if !ok {
+				errs[id] = "Choose at least one option."
+				continue
+			}
+			var options []string
+			_ = json.Unmarshal(f.Options, &options)
+			for _, item := range arr {
+				str, ok := item.(string)
+				if !ok || !contains(options, str) {
+					errs[id] = "Choose valid options."
+					break
+				}
+			}
+		}
+	}
+	if len(errs) > 0 {
+		return apperr.InvalidFields(errs)
+	}
+	return nil
+}
+
+func contains(list []string, v string) bool {
+	for _, item := range list {
+		if item == v {
+			return true
+		}
+	}
+	return false
+}
+
+func isEmptySlice(v any) bool {
+	if arr, ok := v.([]any); ok && len(arr) == 0 {
+		return true
+	}
+	if arr, ok := v.([]string); ok && len(arr) == 0 {
+		return true
+	}
+	return false
 }
 
 func validateInput(in *Input) error {
@@ -296,8 +417,28 @@ func view(s db.Submission) View {
 		ID: s.ID, EventID: s.EventID, RegistrationID: s.RegistrationID, TeamID: s.TeamID,
 		CreatedBy: s.CreatedBy, Title: s.Title, Description: s.Description,
 		RepoURL: s.RepoUrl, DemoURL: s.DemoUrl, FileURL: s.FileUrl, Status: s.Status,
+		Answers:   unmarshalAnswers(s.Answers),
 		CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt,
 	}
+}
+
+func marshalAnswers(answers map[string]any) []byte {
+	if answers == nil {
+		answers = map[string]any{}
+	}
+	raw, err := json.Marshal(answers)
+	if err != nil {
+		return []byte(`{}`)
+	}
+	return raw
+}
+
+func unmarshalAnswers(raw []byte) map[string]any {
+	out := map[string]any{}
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &out)
+	}
+	return out
 }
 
 func deref(s *string) string {

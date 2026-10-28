@@ -256,25 +256,32 @@ func (s *Service) Logout(ctx context.Context, rawToken string) error {
 
 // ── Account settings ────────────────────────────────────────────────────────
 
-func (s *Service) UsernameAvailable(ctx context.Context, username string) (bool, string) {
+func (s *Service) UsernameAvailable(ctx context.Context, username string, viewerID *uuid.UUID) (bool, string) {
 	username = strings.TrimSpace(username)
 	if msg := validateChosenUsername(username); msg != "" {
 		return false, msg
 	}
-	taken, err := s.store.UsernameTaken(ctx, username)
+	existing, err := s.store.GetUserByUsername(ctx, username)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return true, ""
+		}
 		return false, "Could not check that username right now."
 	}
-	if taken {
-		return false, "That username is taken."
+	if viewerID != nil && existing.ID == *viewerID {
+		return true, ""
 	}
-	return true, ""
+	return false, "That username is taken."
 }
 
 func (s *Service) UpdateUsername(ctx context.Context, userID uuid.UUID, username string) error {
 	username = strings.TrimSpace(username)
 	if msg := validateChosenUsername(username); msg != "" {
 		return &ValidationError{Fields: FieldErrors{"username": msg}}
+	}
+	current, err := s.store.GetUserByID(ctx, userID)
+	if err == nil && current.Username == username {
+		return nil
 	}
 	if err := s.store.UpdateUsername(ctx, db.UpdateUsernameParams{ID: userID, Username: username}); err != nil {
 		if isUniqueViolation(err) {
@@ -287,8 +294,8 @@ func (s *Service) UpdateUsername(ctx context.Context, userID uuid.UUID, username
 
 func (s *Service) UpdateOnboarding(ctx context.Context, userID uuid.UUID, step int16, completed bool, intents []string) error {
 	fields := FieldErrors{}
-	if step < 1 || step > 6 {
-		fields["step"] = "Step must be between 1 and 6."
+	if step < 1 || step > 7 {
+		fields["step"] = "Step must be between 1 and 7."
 	}
 	clean := make([]string, 0, len(intents))
 	for _, in := range intents {
@@ -363,11 +370,14 @@ func (s *Service) Profile(ctx context.Context, userID uuid.UUID) (*db.Profile, *
 	return &profile, &user, nil
 }
 
-func (s *Service) UpdateProfile(ctx context.Context, userID uuid.UUID, fullName, college, course string, year *int16) (*db.Profile, error) {
+func (s *Service) UpdateProfile(ctx context.Context, userID uuid.UUID, fullName, college, course, country, state, city string, year *int16) (*db.Profile, error) {
 	fields := FieldErrors{}
 	fullName = strings.TrimSpace(fullName)
 	college = strings.TrimSpace(college)
 	course = strings.TrimSpace(course)
+	country = strings.TrimSpace(country)
+	state = strings.TrimSpace(state)
+	city = strings.TrimSpace(city)
 	if len(fullName) > 120 {
 		fields["full_name"] = "Keep this under 120 characters."
 	}
@@ -377,6 +387,9 @@ func (s *Service) UpdateProfile(ctx context.Context, userID uuid.UUID, fullName,
 	if len(course) > 120 {
 		fields["course"] = "Keep this under 120 characters."
 	}
+	if len(country) > 80 || len(state) > 80 || len(city) > 80 {
+		fields["location"] = "Keep each location field under 80 characters."
+	}
 	if year != nil && (*year < 1 || *year > 8) {
 		fields["year_of_study"] = "Year must be between 1 and 8."
 	}
@@ -385,6 +398,7 @@ func (s *Service) UpdateProfile(ctx context.Context, userID uuid.UUID, fullName,
 	}
 	p, err := s.store.UpsertProfile(ctx, db.UpsertProfileParams{
 		UserID: userID, FullName: fullName, College: college, Course: course, YearOfStudy: year,
+		Country: country, State: state, City: city,
 	})
 	if err != nil {
 		return nil, err

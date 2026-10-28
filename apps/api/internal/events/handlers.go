@@ -23,7 +23,16 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	f := EventFilters{
 		Search: q.Get("q"), Category: q.Get("category"), Format: q.Get("format"),
-		RegStatus: q.Get("status"),
+		RegStatus: q.Get("status"), Country: q.Get("country"), State: q.Get("state"),
+		City: q.Get("city"),
+	}
+	switch q.Get("mode") {
+	case "online", "remote":
+		remote := true
+		f.Remote = &remote
+	case "onsite", "in-person":
+		remote := false
+		f.Remote = &remote
 	}
 	f.Limit, f.Offset = httpx.Pagination(r, 24, 100)
 	list, total, err := h.svc.List(r.Context(), f)
@@ -164,12 +173,13 @@ func (h *Handler) ReplaceForm(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		Fields []FormFieldInput `json:"fields"`
+		Kind   string           `json:"kind"`
 	}
 	if err := httpx.DecodeJSON(w, r, &req, 128<<10); err != nil {
 		httpx.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	fields, err := h.svc.ReplaceForm(r.Context(), u.ID, eventID, req.Fields)
+	fields, err := h.svc.ReplaceForm(r.Context(), u.ID, eventID, req.Kind, req.Fields)
 	if err != nil {
 		httpx.WriteServiceError(w, h.log, err)
 		return
@@ -187,7 +197,7 @@ func (h *Handler) Form(w http.ResponseWriter, r *http.Request) {
 	if u, ok := httpx.UserFrom(r.Context()); ok {
 		viewerID = &u.ID
 	}
-	fields, err := h.svc.FormFields(r.Context(), viewerID, eventID)
+	fields, err := h.svc.FormFields(r.Context(), viewerID, eventID, r.URL.Query().Get("kind"))
 	if err != nil {
 		httpx.WriteServiceError(w, h.log, err)
 		return
@@ -203,14 +213,19 @@ func (h *Handler) InviteStaff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Email string `json:"email"`
-		Role  string `json:"role"`
+		Email    string `json:"email"`
+		Username string `json:"username"`
+		Role     string `json:"role"`
 	}
 	if err := httpx.DecodeJSON(w, r, &req, 8<<10); err != nil {
 		httpx.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	staff, err := h.svc.InviteStaff(r.Context(), u.ID, eventID, req.Email, req.Role)
+	identifier := req.Email
+	if strings.TrimSpace(req.Username) != "" {
+		identifier = req.Username
+	}
+	staff, err := h.svc.InviteStaff(r.Context(), u.ID, eventID, identifier, req.Role)
 	if err != nil {
 		httpx.WriteServiceError(w, h.log, err)
 		return
@@ -288,24 +303,4 @@ func (h *Handler) GetJudgingConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"config": cfg, "criteria": criteria})
-}
-
-func (h *Handler) SetJudgingConfig(w http.ResponseWriter, r *http.Request) {
-	u := httpx.MustUser(r.Context())
-	eventID, err := httpx.PathUUID(r, "id")
-	if err != nil {
-		httpx.Error(w, http.StatusNotFound, "Event not found.")
-		return
-	}
-	var req JudgingConfig
-	if err := httpx.DecodeJSON(w, r, &req, 8<<10); err != nil {
-		httpx.Error(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	cfg, err := h.svc.SetJudgingConfig(r.Context(), u.ID, eventID, req)
-	if err != nil {
-		httpx.WriteServiceError(w, h.log, err)
-		return
-	}
-	httpx.WriteJSON(w, http.StatusOK, map[string]any{"config": cfg})
 }

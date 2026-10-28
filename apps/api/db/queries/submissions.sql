@@ -1,8 +1,8 @@
 -- name: CreateSubmission :one
 INSERT INTO submissions (
     event_id, registration_id, team_id, created_by, title, description,
-    repo_url, demo_url, file_url, status
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    repo_url, demo_url, file_url, status, answers
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 RETURNING *;
 
 -- name: GetSubmissionByID :one
@@ -33,7 +33,7 @@ LIMIT 1;
 -- name: UpdateSubmission :one
 UPDATE submissions
 SET title = $2, description = $3, repo_url = $4, demo_url = $5,
-    file_url = $6, status = $7, updated_at = now()
+    file_url = $6, status = $7, answers = $8, updated_at = now()
 WHERE id = $1
 RETURNING *;
 
@@ -42,7 +42,7 @@ UPDATE submissions SET status = $2, updated_at = now() WHERE id = $1;
 
 -- name: ListSubmissionsForEvent :many
 SELECT s.id, s.event_id, s.registration_id, s.team_id, s.created_by, s.title,
-       s.description, s.repo_url, s.demo_url, s.file_url, s.status,
+       s.description, s.repo_url, s.demo_url, s.file_url, s.status, s.answers,
        s.created_at, s.updated_at,
        u.username AS creator_username, p.full_name AS creator_name,
        t.name AS team_name,
@@ -58,7 +58,7 @@ LIMIT sqlc.arg('lim') OFFSET sqlc.arg('off');
 
 -- name: ListSubmissionsForJudging :many
 SELECT s.id, s.event_id, s.registration_id, s.team_id, s.created_by, s.title,
-       s.description, s.repo_url, s.demo_url, s.file_url, s.status,
+       s.description, s.repo_url, s.demo_url, s.file_url, s.status, s.answers,
        s.created_at, s.updated_at,
        u.username AS creator_username, p.full_name AS creator_name,
        t.name AS team_name
@@ -76,7 +76,7 @@ ORDER BY s.created_at ASC;
 
 -- name: ListMySubmissions :many
 SELECT s.id, s.event_id, s.registration_id, s.team_id, s.created_by, s.title,
-       s.description, s.repo_url, s.demo_url, s.file_url, s.status,
+       s.description, s.repo_url, s.demo_url, s.file_url, s.status, s.answers,
        s.created_at, s.updated_at,
        e.title AS event_title, e.slug AS event_slug, e.submission_deadline,
        t.name AS team_name

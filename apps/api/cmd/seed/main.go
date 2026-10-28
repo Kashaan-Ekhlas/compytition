@@ -108,6 +108,7 @@ func main() {
 		Eligibility:  "Open to students and recent graduates.",
 		Rules:        "Teams of up to four. Work must be started during the event.",
 		ContactEmail: "host@compytition.local", Location: "Online",
+		IsRemote: true, MergeRegistrationSubmission: false,
 		MinTeamSize: 1, MaxTeamSize: 4,
 		RegistrationOpensAt: &opens, RegistrationClosesAt: &closes,
 		StartsAt: &starts, EndsAt: &ends, SubmissionDeadline: &deadline,
@@ -138,7 +139,7 @@ func main() {
 		raw, _ := json.Marshal(f.Options)
 		if _, err := store.CreateFormField(ctx, db.CreateFormFieldParams{
 			EventID: ev.ID, Label: f.Label, FieldType: f.Type, Required: f.Required,
-			Options: raw, HelpText: f.Help, Position: int32(i + 1),
+			Options: raw, HelpText: f.Help, Position: int32(i + 1), FormKind: "registration",
 		}); err != nil {
 			slog.Error("create form field", "error", err)
 			os.Exit(1)

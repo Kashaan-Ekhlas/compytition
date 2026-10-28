@@ -259,7 +259,7 @@ func (q *Queries) GetLoginAttempt(ctx context.Context, key string) (LoginAttempt
 }
 
 const getProfile = `-- name: GetProfile :one
-SELECT user_id, full_name, college, course, year_of_study, updated_at FROM profiles WHERE user_id = $1
+SELECT user_id, full_name, college, course, year_of_study, updated_at, country, state, city FROM profiles WHERE user_id = $1
 `
 
 func (q *Queries) GetProfile(ctx context.Context, userID uuid.UUID) (Profile, error) {
@@ -272,6 +272,9 @@ func (q *Queries) GetProfile(ctx context.Context, userID uuid.UUID) (Profile, er
 		&i.Course,
 		&i.YearOfStudy,
 		&i.UpdatedAt,
+		&i.Country,
+		&i.State,
+		&i.City,
 	)
 	return i, err
 }
@@ -484,15 +487,18 @@ func (q *Queries) UpdateUsername(ctx context.Context, arg UpdateUsernameParams) 
 }
 
 const upsertProfile = `-- name: UpsertProfile :one
-INSERT INTO profiles (user_id, full_name, college, course, year_of_study)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO profiles (user_id, full_name, college, course, year_of_study, country, state, city)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 ON CONFLICT (user_id) DO UPDATE
 SET full_name = EXCLUDED.full_name,
     college = EXCLUDED.college,
     course = EXCLUDED.course,
     year_of_study = EXCLUDED.year_of_study,
+    country = EXCLUDED.country,
+    state = EXCLUDED.state,
+    city = EXCLUDED.city,
     updated_at = now()
-RETURNING user_id, full_name, college, course, year_of_study, updated_at
+RETURNING user_id, full_name, college, course, year_of_study, updated_at, country, state, city
 `
 
 type UpsertProfileParams struct {
@@ -501,6 +507,9 @@ type UpsertProfileParams struct {
 	College     string    `json:"college"`
 	Course      string    `json:"course"`
 	YearOfStudy *int16    `json:"year_of_study"`
+	Country     string    `json:"country"`
+	State       string    `json:"state"`
+	City        string    `json:"city"`
 }
 
 func (q *Queries) UpsertProfile(ctx context.Context, arg UpsertProfileParams) (Profile, error) {
@@ -510,6 +519,9 @@ func (q *Queries) UpsertProfile(ctx context.Context, arg UpsertProfileParams) (P
 		arg.College,
 		arg.Course,
 		arg.YearOfStudy,
+		arg.Country,
+		arg.State,
+		arg.City,
 	)
 	var i Profile
 	err := row.Scan(
@@ -519,6 +531,9 @@ func (q *Queries) UpsertProfile(ctx context.Context, arg UpsertProfileParams) (P
 		&i.Course,
 		&i.YearOfStudy,
 		&i.UpdatedAt,
+		&i.Country,
+		&i.State,
+		&i.City,
 	)
 	return i, err
 }

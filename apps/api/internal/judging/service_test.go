@@ -10,7 +10,10 @@ import (
 )
 
 func TestDisagreementsGroupJudgesAcrossPairRows(t *testing.T) {
-	subA, subB := uuid.New(), uuid.New()
+	// Fixed IDs keep subA canonical (lower UUID string) so the assertion does
+	// not depend on random UUID ordering.
+	subA := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	subB := uuid.MustParse("00000000-0000-0000-0000-000000000002")
 	pairOne, pairTwo := uuid.New(), uuid.New()
 	judgeOne, judgeTwo := uuid.New(), uuid.New()
 

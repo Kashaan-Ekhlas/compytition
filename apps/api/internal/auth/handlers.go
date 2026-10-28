@@ -59,6 +59,7 @@ func profileDTO(p *db.Profile) map[string]any {
 	}
 	return map[string]any{
 		"full_name": p.FullName, "college": p.College, "course": p.Course,
+		"country": p.Country, "state": p.State, "city": p.City,
 		"year_of_study": year, "updated_at": p.UpdatedAt,
 	}
 }
@@ -163,13 +164,16 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		FullName    string `json:"full_name"`
 		College     string `json:"college"`
 		Course      string `json:"course"`
+		Country     string `json:"country"`
+		State       string `json:"state"`
+		City        string `json:"city"`
 		YearOfStudy *int16 `json:"year_of_study"`
 	}
 	if err := httpx.DecodeJSON(w, r, &req, 16<<10); err != nil {
 		httpx.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	profile, err := h.svc.UpdateProfile(r.Context(), u.ID, req.FullName, req.College, req.Course, req.YearOfStudy)
+	profile, err := h.svc.UpdateProfile(r.Context(), u.ID, req.FullName, req.College, req.Course, req.Country, req.State, req.City, req.YearOfStudy)
 	if err != nil {
 		h.writeError(w, err)
 		return
@@ -195,7 +199,11 @@ func (h *Handler) UpdateUsername(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) UsernameAvailable(w http.ResponseWriter, r *http.Request) {
 	username := r.URL.Query().Get("username")
-	available, reason := h.svc.UsernameAvailable(r.Context(), username)
+	var viewerID *uuid.UUID
+	if u, ok := httpx.UserFrom(r.Context()); ok {
+		viewerID = &u.ID
+	}
+	available, reason := h.svc.UsernameAvailable(r.Context(), username, viewerID)
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"available": available, "reason": reason})
 }
 

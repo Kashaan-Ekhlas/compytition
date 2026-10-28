@@ -71,13 +71,16 @@ DELETE FROM login_attempts WHERE first_attempt_at < now() - interval '24 hours';
 SELECT * FROM profiles WHERE user_id = $1;
 
 -- name: UpsertProfile :one
-INSERT INTO profiles (user_id, full_name, college, course, year_of_study)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO profiles (user_id, full_name, college, course, year_of_study, country, state, city)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 ON CONFLICT (user_id) DO UPDATE
 SET full_name = EXCLUDED.full_name,
     college = EXCLUDED.college,
     course = EXCLUDED.course,
     year_of_study = EXCLUDED.year_of_study,
+    country = EXCLUDED.country,
+    state = EXCLUDED.state,
+    city = EXCLUDED.city,
     updated_at = now()
 RETURNING *;
 

@@ -28,6 +28,7 @@ func registerSupportRoutes(mux *http.ServeMux, api *API) {
 	mux.HandleFunc("POST /api/v1/feedback", h.Feedback)
 	mux.Handle("GET /api/v1/admin/feedback", RequireAuth(http.HandlerFunc(h.AdminFeedback)))
 	mux.Handle("GET /api/v1/bookmarks", RequireAuth(http.HandlerFunc(h.Bookmarks)))
+	mux.Handle("GET /api/v1/events/{id}/bookmark", RequireAuth(http.HandlerFunc(h.BookmarkStatus)))
 	mux.Handle("POST /api/v1/events/{id}/bookmark", RequireAuth(http.HandlerFunc(h.AddBookmark)))
 	mux.Handle("DELETE /api/v1/events/{id}/bookmark", RequireAuth(http.HandlerFunc(h.RemoveBookmark)))
 }

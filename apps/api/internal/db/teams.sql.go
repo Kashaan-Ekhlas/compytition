@@ -124,7 +124,7 @@ func (q *Queries) CreateJoinRequest(ctx context.Context, arg CreateJoinRequestPa
 const createTeam = `-- name: CreateTeam :one
 INSERT INTO teams (event_id, name, owner_id, is_looking_for_members)
 VALUES ($1, $2, $3, $4)
-RETURNING id, event_id, name, owner_id, is_looking_for_members, created_at, updated_at
+RETURNING id, event_id, name, owner_id, is_looking_for_members, created_at, updated_at, invite_token
 `
 
 type CreateTeamParams struct {
@@ -150,6 +150,7 @@ func (q *Queries) CreateTeam(ctx context.Context, arg CreateTeamParams) (Team, e
 		&i.IsLookingForMembers,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.InviteToken,
 	)
 	return i, err
 }
@@ -285,7 +286,7 @@ func (q *Queries) GetPendingTeamInviteForTeamUser(ctx context.Context, arg GetPe
 }
 
 const getTeamByID = `-- name: GetTeamByID :one
-SELECT id, event_id, name, owner_id, is_looking_for_members, created_at, updated_at FROM teams WHERE id = $1
+SELECT id, event_id, name, owner_id, is_looking_for_members, created_at, updated_at, invite_token FROM teams WHERE id = $1
 `
 
 func (q *Queries) GetTeamByID(ctx context.Context, id uuid.UUID) (Team, error) {
@@ -299,12 +300,33 @@ func (q *Queries) GetTeamByID(ctx context.Context, id uuid.UUID) (Team, error) {
 		&i.IsLookingForMembers,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.InviteToken,
+	)
+	return i, err
+}
+
+const getTeamByInviteToken = `-- name: GetTeamByInviteToken :one
+SELECT id, event_id, name, owner_id, is_looking_for_members, created_at, updated_at, invite_token FROM teams WHERE invite_token = $1
+`
+
+func (q *Queries) GetTeamByInviteToken(ctx context.Context, inviteToken *string) (Team, error) {
+	row := q.db.QueryRow(ctx, getTeamByInviteToken, inviteToken)
+	var i Team
+	err := row.Scan(
+		&i.ID,
+		&i.EventID,
+		&i.Name,
+		&i.OwnerID,
+		&i.IsLookingForMembers,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.InviteToken,
 	)
 	return i, err
 }
 
 const getTeamForEventUser = `-- name: GetTeamForEventUser :one
-SELECT t.id, t.event_id, t.name, t.owner_id, t.is_looking_for_members, t.created_at, t.updated_at FROM teams t
+SELECT t.id, t.event_id, t.name, t.owner_id, t.is_looking_for_members, t.created_at, t.updated_at, t.invite_token FROM teams t
 JOIN team_members m ON m.team_id = t.id
 WHERE t.event_id = $1 AND m.user_id = $2
 `
@@ -325,6 +347,7 @@ func (q *Queries) GetTeamForEventUser(ctx context.Context, arg GetTeamForEventUs
 		&i.IsLookingForMembers,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.InviteToken,
 	)
 	return i, err
 }
@@ -803,7 +826,7 @@ func (q *Queries) ListTeamsForEvent(ctx context.Context, eventID uuid.UUID) ([]L
 }
 
 const lockTeamForUpdate = `-- name: LockTeamForUpdate :one
-SELECT id, event_id, name, owner_id, is_looking_for_members, created_at, updated_at FROM teams WHERE id = $1 FOR UPDATE
+SELECT id, event_id, name, owner_id, is_looking_for_members, created_at, updated_at, invite_token FROM teams WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) LockTeamForUpdate(ctx context.Context, id uuid.UUID) (Team, error) {
@@ -817,6 +840,7 @@ func (q *Queries) LockTeamForUpdate(ctx context.Context, id uuid.UUID) (Team, er
 		&i.IsLookingForMembers,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.InviteToken,
 	)
 	return i, err
 }
@@ -832,6 +856,20 @@ type RemoveTeamMemberParams struct {
 
 func (q *Queries) RemoveTeamMember(ctx context.Context, arg RemoveTeamMemberParams) error {
 	_, err := q.db.Exec(ctx, removeTeamMember, arg.TeamID, arg.UserID)
+	return err
+}
+
+const setTeamInviteToken = `-- name: SetTeamInviteToken :exec
+UPDATE teams SET invite_token = $2, updated_at = now() WHERE id = $1
+`
+
+type SetTeamInviteTokenParams struct {
+	ID          uuid.UUID `json:"id"`
+	InviteToken *string   `json:"invite_token"`
+}
+
+func (q *Queries) SetTeamInviteToken(ctx context.Context, arg SetTeamInviteTokenParams) error {
+	_, err := q.db.Exec(ctx, setTeamInviteToken, arg.ID, arg.InviteToken)
 	return err
 }
 

@@ -36,6 +36,7 @@ SELECT e.id, e.slug, e.organizer_id, e.title, e.description, e.category,
        e.registration_closes_at, e.starts_at, e.ends_at, e.submission_deadline,
        e.criteria, e.judging_config, e.judging_status, e.judging_locked_at,
        e.results_published_at, e.created_at, e.updated_at,
+    e.is_remote, e.country, e.state, e.city, e.merge_registration_submission,
        b.created_at AS bookmarked_at
 FROM bookmarks b
 JOIN events e ON e.id = b.event_id

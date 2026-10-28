@@ -43,33 +43,38 @@ type ChatMessage struct {
 }
 
 type Event struct {
-	ID                   uuid.UUID   `json:"id"`
-	Slug                 string      `json:"slug"`
-	OrganizerID          uuid.UUID   `json:"organizer_id"`
-	Title                string      `json:"title"`
-	Description          string      `json:"description"`
-	Category             string      `json:"category"`
-	ParticipationFormat  string      `json:"participation_format"`
-	Status               string      `json:"status"`
-	Eligibility          string      `json:"eligibility"`
-	Rules                string      `json:"rules"`
-	ContactEmail         string      `json:"contact_email"`
-	Location             string      `json:"location"`
-	MinTeamSize          int16       `json:"min_team_size"`
-	MaxTeamSize          int16       `json:"max_team_size"`
-	RegistrationOpensAt  *time.Time  `json:"registration_opens_at"`
-	RegistrationClosesAt *time.Time  `json:"registration_closes_at"`
-	StartsAt             *time.Time  `json:"starts_at"`
-	EndsAt               *time.Time  `json:"ends_at"`
-	SubmissionDeadline   *time.Time  `json:"submission_deadline"`
-	Criteria             []byte      `json:"criteria"`
-	JudgingConfig        []byte      `json:"judging_config"`
-	JudgingStatus        string      `json:"judging_status"`
-	JudgingLockedAt      *time.Time  `json:"judging_locked_at"`
-	ResultsPublishedAt   *time.Time  `json:"results_published_at"`
-	CreatedAt            time.Time   `json:"created_at"`
-	UpdatedAt            time.Time   `json:"updated_at"`
-	SearchVector         interface{} `json:"search_vector"`
+	ID                          uuid.UUID   `json:"id"`
+	Slug                        string      `json:"slug"`
+	OrganizerID                 uuid.UUID   `json:"organizer_id"`
+	Title                       string      `json:"title"`
+	Description                 string      `json:"description"`
+	Category                    string      `json:"category"`
+	ParticipationFormat         string      `json:"participation_format"`
+	Status                      string      `json:"status"`
+	Eligibility                 string      `json:"eligibility"`
+	Rules                       string      `json:"rules"`
+	ContactEmail                string      `json:"contact_email"`
+	Location                    string      `json:"location"`
+	MinTeamSize                 int16       `json:"min_team_size"`
+	MaxTeamSize                 int16       `json:"max_team_size"`
+	RegistrationOpensAt         *time.Time  `json:"registration_opens_at"`
+	RegistrationClosesAt        *time.Time  `json:"registration_closes_at"`
+	StartsAt                    *time.Time  `json:"starts_at"`
+	EndsAt                      *time.Time  `json:"ends_at"`
+	SubmissionDeadline          *time.Time  `json:"submission_deadline"`
+	Criteria                    []byte      `json:"criteria"`
+	JudgingConfig               []byte      `json:"judging_config"`
+	JudgingStatus               string      `json:"judging_status"`
+	JudgingLockedAt             *time.Time  `json:"judging_locked_at"`
+	ResultsPublishedAt          *time.Time  `json:"results_published_at"`
+	CreatedAt                   time.Time   `json:"created_at"`
+	UpdatedAt                   time.Time   `json:"updated_at"`
+	SearchVector                interface{} `json:"search_vector"`
+	IsRemote                    bool        `json:"is_remote"`
+	Country                     string      `json:"country"`
+	State                       string      `json:"state"`
+	City                        string      `json:"city"`
+	MergeRegistrationSubmission bool        `json:"merge_registration_submission"`
 }
 
 type EventFormField struct {
@@ -82,6 +87,7 @@ type EventFormField struct {
 	HelpText  string    `json:"help_text"`
 	Position  int32     `json:"position"`
 	CreatedAt time.Time `json:"created_at"`
+	FormKind  string    `json:"form_kind"`
 }
 
 type EventResult struct {
@@ -182,6 +188,9 @@ type Profile struct {
 	Course      string    `json:"course"`
 	YearOfStudy *int16    `json:"year_of_study"`
 	UpdatedAt   time.Time `json:"updated_at"`
+	Country     string    `json:"country"`
+	State       string    `json:"state"`
+	City        string    `json:"city"`
 }
 
 type Registration struct {
@@ -218,6 +227,7 @@ type Submission struct {
 	Status         string     `json:"status"`
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
+	Answers        []byte     `json:"answers"`
 }
 
 type Team struct {
@@ -228,6 +238,7 @@ type Team struct {
 	IsLookingForMembers bool      `json:"is_looking_for_members"`
 	CreatedAt           time.Time `json:"created_at"`
 	UpdatedAt           time.Time `json:"updated_at"`
+	InviteToken         *string   `json:"invite_token"`
 }
 
 type TeamInvite struct {

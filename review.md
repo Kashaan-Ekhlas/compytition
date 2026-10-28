@@ -1,8 +1,8 @@
-# Code Review — Compytition
+# Code Review - Compytition
 
-**Date:** 2026-10-27  
-**Scope:** `apps/api` (Go services, handlers, SQLC queries, middleware, config) and `apps/web` (auth/onboarding redirects, API client usage).  
-**Method:** manual line-by-line audit against `rules.md`; CodeRabbit CLI was attempted but is still signed out (`coderabbit auth status` → `signed out`), so this review is the fallback agreed with the user.
+**Date:** 2026-10-29 (second pass; first pass was 2026-10-27)  
+**Scope:** `apps/api` (submission answers, judging payloads, event filters, staff/team invites) and `apps/web` (single-theme UI, auth/onboarding, discovery, forms, notifications, event cards).  
+**Method:** manual line-by-line audit against `rules.md` plus browser smoke tests through Docker Compose; CodeRabbit CLI is still signed out (`coderabbit auth status` → `signed out`), so manual review remains the fallback agreed with the user.
 
 Severity reflects user impact: **High** = data loss, security bypass, or broken core flow; **Medium** = incorrect behaviour or a realistic race; **Low** = hardening, consistency, or polish.
 
@@ -29,6 +29,13 @@ Severity reflects user impact: **High** = data loss, security bypass, or broken 
 | 17 | Low | Maintenance | Expired OAuth states and stale login-attempt rows were never cleaned up. | Fixed |
 | 18 | Low | Teams | Team detail had two identical pending-invite/request branches. | Fixed |
 | 19 | Low | Web | Login dropped the intended destination when sending a new user to onboarding. | Fixed |
+| 20 | High | Submissions | Custom submission answers were stored but never validated server-side, so unknown or malformed answers could bypass the form schema. | Fixed |
+| 21 | Medium | Organizer / Judge | Submission answers were omitted from organizer lists and judging payloads, so extra questions were invisible after registration. | Fixed |
+| 22 | Medium | Event discovery | The status filter sent `published` / `results_published` while the API accepts `upcoming` / `open` / `closed` / `ended`, so several status filters returned a validation error. | Fixed |
+| 23 | Medium | Web forms | The submit page posted registration answer keys alongside submission answers, and merged events did not prefill from registration. | Fixed |
+| 24 | Low | Event UI | Event detail and organizer overview still displayed a minimum team size ("teams of 1-6") after the product moved to max-only team sizes. | Fixed |
+| 25 | Low | Notifications | The 5-second poll set loading state and briefly replaced the open list with "Loading…" on every tick. | Fixed |
+| 26 | Low | Tests | `TestDisagreementsGroupJudgesAcrossPairRows` used random UUIDs, so it failed about half the time when the canonical order flipped. | Fixed |
 
 ## Details
 
@@ -36,13 +43,13 @@ Severity reflects user impact: **High** = data loss, security bypass, or broken 
 
 `teams.Leave` deleted the caller's registration and *then* transferred ownership. `submissions.registration_id` uses `ON DELETE CASCADE`, so if the leaver was the submission creator the submission disappeared. Separately, the last member leaving deletes all team registrations.
 
-**Fix:** leaving is still always allowed (P0 requirement). When a team has a submission and the leaver created it, the submission is reassigned to the longest-standing remaining member with a registered registration before the leaver's registration is deleted. If the leaver is the last member, the empty team is dissolved and its registrations are deleted deliberately, matching “the team dissolves when empty.”
+**Fix:** leaving is still always allowed (P0 requirement). When a team has a submission and the leaver created it, the submission is reassigned to the longest-standing remaining member with a registered registration before the leaver's registration is deleted. If the leaver is the last member, the empty team is dissolved and its registrations are deleted deliberately, matching "the team dissolves when empty."
 
 **Files:** `internal/teams/service.go`, `db/queries/submissions.sql` (`ReassignSubmission`).
 
 ### 2. Split decisions were invisible (High)
 
-`disagreements` grouped outcomes by `judging_pairs.id`. Each judge receives their own pair row for the same canonical submission pair, so a 2–1 split produced three groups of one winner and never appeared in the host review.
+`disagreements` grouped outcomes by `judging_pairs.id`. Each judge receives their own pair row for the same canonical submission pair, so a 2-1 split produced three groups of one winner and never appeared in the host review.
 
 **Fix:** group by the canonical `(submission_a, submission_b)` pair. `pair_id` in the response is now a deterministic representative pair ID; consumers should not assume it is shared by all judges. Covered by `TestDisagreementsGroupJudgesAcrossPairRows`.
 
@@ -60,7 +67,7 @@ Login/register/onboarding used `next.startsWith("/")`, which accepts protocol-re
 
 `envInt`/`envBool` returned defaults on parse errors. A typo such as `SESSION_TTL_HOURS=72O` or `COOKIE_SECURE=tru` produced a running service with unexpected settings.
 
-**Fix:** parsing now returns errors and `Load` fails fast. Also validates `PORT` as 1–65535 and `WEB_ORIGIN` as an origin with no path/query/fragment. Covered by `config_test.go`.
+**Fix:** parsing now returns errors and `Load` fails fast. Also validates `PORT` as 1-65535 and `WEB_ORIGIN` as an origin with no path/query/fragment. Covered by `config_test.go`.
 
 **Files:** `internal/config/config.go`, `internal/config/config_test.go`.
 
@@ -128,7 +135,7 @@ Each dashboard section used `if err == nil { ... }`, so a database failure looke
 
 **Files:** `internal/dashboard/service.go`.
 
-### 13–19. Smaller fixes
+### 13-19. Smaller fixes
 
 - `/host/events` now includes accepted co-organizers, not just owners (`ListEventsByOrganizer`).
 - Draft events return 404 from bookmark creation.
@@ -137,6 +144,62 @@ Each dashboard section used `if err == nil { ... }`, so a database failure looke
 - Hourly maintenance now also deletes expired OAuth states and login attempts older than 24 hours, and runs once at startup.
 - Team detail pending-flag branches were deduplicated.
 - Login `next` is carried through onboarding.
+
+### 20. Submission answers bypassed validation (High)
+
+The new `submissions.answers` column was written straight from the request body. A participant could post arbitrary keys, skip required submission questions, or store values that did not match the field type.
+
+**Fix:** `submissions.Service.validateAnswers` loads the event's `submission` form kind and rejects unknown keys, missing required values, oversized text, invalid URLs, non-numeric numbers, and options outside the declared list. Create and update both call it before writing. Covered by the same pattern used for registration answers.
+
+**Files:** `internal/submissions/service.go`, `db/queries/submissions.sql`.
+
+### 21. Organizer and judge payloads hid custom answers (Medium)
+
+`ListSubmissionsForEvent`, `ListSubmissionsForJudging` and `ListMySubmissions` did not select `answers`. Organizers saw only title/description/links, and judges could not see the extra questions the event asked.
+
+**Fix:** the three queries now select `answers`; the submission views unmarshal them, `judging.Submission` carries `Answers`, and a shared `SubmissionAnswers` component renders labelled values on the organizer submissions tab and both judge panels.
+
+**Files:** `db/queries/submissions.sql`, `internal/submissions/service.go`, `internal/judging/service.go`, `components/forms/submission-answers.tsx`, `components/host/tab-submissions.tsx`, `app/judge/events/[id]/page.tsx`.
+
+### 22. Discovery status filter used the wrong vocabulary (Medium)
+
+The UI offered `published` and `results_published`, but `events.List` validates `upcoming`, `open`, `closed`, `ended`. Selecting those options returned 422 instead of filtering.
+
+**Fix:** the status options now use the API vocabulary (`Upcoming`, `Registration open`, `Registration closed`, `Ended`) and `endpoints.md` documents it.
+
+**Files:** `app/events/page.tsx`, `endpoints.md`.
+
+### 23. Submit page mixed registration and submission answers (Medium)
+
+The submit page sent every answer from the merged registration form, including registration-only keys, and did not prefill merged submission answers when the submission was first created. The API correctly rejected the unknown keys.
+
+**Fix:** loading builds a set of submission field IDs, prefills from registration answers filtered to that set, then overlays the saved submission answers. On submit the same filter is applied, so only submission keys leave the browser.
+
+**Files:** `app/events/[id]/submit/page.tsx`.
+
+### 24. Team size copy still showed a minimum (Low)
+
+The backend now fixes `min_team_size` at 1, but event detail and the organizer overview rendered `teams of 1-N`.
+
+**Fix:** both screens say `Solo or teams up to N` or `Teams up to N`.
+
+**Files:** `app/events/[id]/page.tsx`, `components/host/tab-overview.tsx`.
+
+### 25. Notification polling flickered the open menu (Low)
+
+Every 5-second poll set `loading = true`, and the list rendered the loading line instead of existing items until the response arrived.
+
+**Fix:** the loading state only occupies the panel when the list is still empty. Existing notifications stay visible during background refreshes.
+
+**Files:** `components/layout/notifications-menu.tsx`.
+
+### 26. Flaky split-decision test (Low)
+
+The test created `subA` and `subB` with `uuid.New()`. `canonicalA` orders by UUID string, so the assertion `TitleA == "Alpha"` failed whenever `subB` sorted first.
+
+**Fix:** fixed UUIDs keep `subA` canonical.
+
+**Files:** `internal/judging/service_test.go`.
 
 ## Verification
 
@@ -159,12 +222,14 @@ npm test -- --run
 npm run build
 ```
 
-Go: all packages build/vet clean; tests pass (including new config, judging, and middleware tests).  
+Go: all packages build/vet clean; tests pass (including new config, judging, and middleware tests). The flaky split-decision test is now deterministic.  
 Web: TypeScript clean, 22 Vitest tests pass, production build succeeds.
+
+Second pass (2026-10-29) also exercised the new flows in the browser: seven-step onboarding with curated college/course suggestions and sequential country/state/city, correct own-username availability, password checklist and eye toggles, red login toast with X, remote-first event creation and location search, merged registration with custom fields, submission answers saved while merged and shown to the organizer/judge payloads, staff and team invite auto-accept for existing and new accounts, and the bell notification trigger. Submission answer validation and the corrected discovery status filter were covered after the fixes.
 
 ### Runtime smoke test (Docker Compose + Postgres)
 
-The API and web images were rebuilt and exercised against the seeded database through the real HTTP API:
+The API and web images were rebuilt and exercised against the seeded database through the real HTTP API and the browser:
 
 - Team submission hand-off: Alice (owner and submission creator) left a two-person team; the submission was reassigned to Bob with his registration, and Bob became owner. The roster stayed hidden from anonymous visitors and non-members while remaining visible to members, and a pending invitee saw only their invite flag.
 - Roster/pending privacy held for a member of the public and for an invitee who was not yet a member.
@@ -174,6 +239,7 @@ The API and web images were rebuilt and exercised against the seeded database th
 - Judging review: two judges voted opposite ways on the same canonical pair and the review reported exactly one split decision; accepted judges with no judgments appeared at Beta(3,1) with `comparisons: 0`.
 - Conflict undo: a conflict skipped two pairs; undo returned the pair to pending, restored the other skipped pair, and left zero skipped pairs.
 - Request logs contained 8 redacted staff-invite paths and no raw tokens.
+- Second pass: onboarding saved country/state/city, own usernames reported available, a merged event accepted a custom registration field, the same field appeared on the submission form, and the submission payload returned it. Submission-answer validation rejected unknown keys. Staff and team invite links auto-accepted for both existing and newly registered accounts.
 
 Smoke-test events and accounts were removed from the database afterwards; the seed event is unchanged.
 
@@ -181,9 +247,12 @@ Smoke-test events and accounts were removed from the database afterwards; the se
 
 These are real but were outside this review's fix scope or need a product decision:
 
-1. **No DB-backed integration tests.** Domain services and HTTP handlers still have no automated integration suite. The new behaviours (submission hand-off on leave, conflict undo, event status locking) were exercised in the manual Compose smoke test above but are not guarded by CI. Recommended next step: a small `testcontainers`/Compose-backed suite covering the judging and team flows.
+1. **No DB-backed integration tests.** Domain services and HTTP handlers still have no automated integration suite. The new behaviours (submission answer validation, merged forms, invite auto-accept, conflict undo, event status locking) were exercised manually but are not guarded by CI. Recommended next step: a small `testcontainers`/Compose-backed suite covering judging, team, and submission flows.
 2. **In-process rate limiter and chat hub.** Both are single-instance only. Horizontal scaling needs Redis/pub-sub or a shared limiter.
 3. **Session touch on every request.** `TouchSession` writes per authenticated request; debounce (e.g. once per five minutes) if write load becomes a problem.
-4. **No submission withdrawal endpoint.** Leaving a team no longer destroys a submission, but there is still no explicit “withdraw submission” route; participants can edit to draft status but cannot delete.
-5. **CSP.** The web app deliberately omits a strict CSP because of the inline theme bootstrap script; the API sends a restrictive CSP for its JSON responses.
-6. **Split-decision pair ID.** `disagreements[].pair_id` is now a representative ID, not an identifier shared by all judges. The UI only uses it as a React key, but future API consumers should use `title_a`/`title_b` or winner counts.
+4. **No submission withdrawal endpoint.** Leaving a team no longer destroys a submission, but there is still no explicit "withdraw submission" route; participants can edit to draft status but cannot delete.
+5. **CSP.** The inline theme bootstrap script is gone now that there is one theme, so a strict CSP for the web app is feasible but not yet configured; the API sends a restrictive CSP for its JSON responses.
+6. **Bookmark status per card.** Each event card calls `GET /events/{id}/bookmark` when signed in, so a page of 12 cards makes 12 small requests. A `bookmarked` flag in the event list payload would remove that N+1.
+7. **Notification polling.** Five-second polling is simple and works across instances, but it keeps making requests on idle tabs. A shared SSE/WebSocket channel or a longer interval after inactivity would scale better.
+8. **Split-decision pair ID.** `disagreements[].pair_id` is a representative ID, not an identifier shared by all judges. The UI only uses it as a React key, but future API consumers should use `title_a`/`title_b` or winner counts.
+9. **Stored judging config GET.** `GET /events/{id}/judging-config` still returns the stored legacy JSON, while preview/assign derive the effective values from counts and the deadline. The web app does not read it; either derive it there too or remove the route.

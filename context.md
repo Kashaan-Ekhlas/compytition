@@ -46,47 +46,55 @@ Data flow: browser → Next.js `app/api` rewrite proxy → Go API `/api/v1/*` �
 
 ## Decisions Log
 
-- **2026-10-27** — Follow the prompt's `apps/api` + `apps/web` layout; removed the empty `backend/`/`frontend/` folders.
-- **2026-10-27** — Migration tool: `golang-migrate` with embedded `iofs` source, applied automatically at API boot (`AUTO_MIGRATE`) and available via `cmd/migrate`.
-- **2026-10-27** — SQLC `pgx/v5` output in `internal/db`; UUID overrides to `uuid.UUID`; nullable UUID/timestamp overrides to pointers. JSONB is generated as `[]byte` and parsed at the service boundary.
-- **2026-10-27** — Passwords: argon2id, m=65536 KiB, t=3, p=2, 16-byte salt, 32-byte key, PHC encoding.
-- **2026-10-27** — Sessions: 32-byte random URL-safe token, SHA-256 stored, HttpOnly + SameSite=Lax + Secure-in-prod cookie, 30-day default TTL, hourly expired-session cleanup.
-- **2026-10-27** — CSRF: Origin/Referer allowlist + SameSite=Lax (prompt allows Origin checks). CORS allows exactly `WEB_ORIGIN` with credentials.
-- **2026-10-27** — Login lockout: 8 failures per (IP,email) hash within 15 minutes → 15-minute lock. Generic auth errors prevent enumeration.
-- **2026-10-27** — Google sign-in: `coreos/go-oidc` verifier (signature, issuer, audience, expiry) plus `email_verified` check. `oauth2` handles PKCE S256.
-- **2026-10-27** — Onboarding is resumable via `users.onboarding_step`, `onboarding_completed`, and `intents`; registration auto-generates a placeholder username (`user_xxxxxx`) that must be replaced before completion.
-- **2026-10-27** — Event lifecycle: draft → published → closed → results_published (results status set by judging finalization). Unpublish only before registrations. Only drafts are deletable.
-- **2026-10-27** — Event staff (judges/co-organizers) invited by email with bearer invite tokens; acceptance requires the logged-in account email to match. This prevents forwarded-link takeover.
-- **2026-10-27** — Team invites are account-based (by username); join requests are user-initiated. Both require explicit acceptance. Registration rows are created for team members when a team registers; late joiners inherit the team registration answers.
-- **2026-10-27** — Judging judgments are append-only. Each pair has at most one `is_current` row; edits supersede rather than overwrite, preserving an audit trail. Immutability enforced after judging locks.
-- **2026-10-27** — Rate limiting is an in-process fixed-window limiter (240 req/min global, 20 req/min auth). Horizontal scaling would move this to a shared store; documented as tech debt.
-- **2026-10-27** — Added `coreos/go-oidc` and `golang-migrate` beyond the minimal dependency list; both are explicitly justified by the security and migration requirements.
-- **2026-10-27** — Frontend is client-fetched through a shared `api()` helper and `AuthProvider`; Next rewrites `/api/v1/*` to `API_INTERNAL_URL` so the browser stays same-origin and the session cookie works without CORS in the normal path.
-- **2026-10-27** — Compose publishes web on `3100`, API on `8080` and Postgres on `5433`, avoiding collisions with local dev servers (notably an existing `:3000` app on this machine).
-- **2026-10-27** — Team chat connects directly to `NEXT_PUBLIC_WS_BASE` because websocket upgrades cannot go through Next rewrites reliably; Origin is checked server-side.
-- **2026-10-27** — Public health probes: `/healthz` (process up) and `/readyz` (Postgres ping) live outside `/api/v1` and skip authentication.
-- **2026-10-27** — Review/publish responses serialize empty collections as `[]` rather than `null`; the client also normalizes arrays defensively so a rendering path never assumes a non-nil slice.
-- **2026-10-27** — Judge progress includes `last_pair_id`, allowing undo to survive queue completion and page reloads without a separate endpoint.
+- **2026-10-27** - Follow the prompt's `apps/api` + `apps/web` layout; removed the empty `backend/`/`frontend/` folders.
+- **2026-10-27** - Migration tool: `golang-migrate` with embedded `iofs` source, applied automatically at API boot (`AUTO_MIGRATE`) and available via `cmd/migrate`.
+- **2026-10-27** - SQLC `pgx/v5` output in `internal/db`; UUID overrides to `uuid.UUID`; nullable UUID/timestamp overrides to pointers. JSONB is generated as `[]byte` and parsed at the service boundary.
+- **2026-10-27** - Passwords: argon2id, m=65536 KiB, t=3, p=2, 16-byte salt, 32-byte key, PHC encoding.
+- **2026-10-27** - Sessions: 32-byte random URL-safe token, SHA-256 stored, HttpOnly + SameSite=Lax + Secure-in-prod cookie, 30-day default TTL, hourly expired-session cleanup.
+- **2026-10-27** - CSRF: Origin/Referer allowlist + SameSite=Lax (prompt allows Origin checks). CORS allows exactly `WEB_ORIGIN` with credentials.
+- **2026-10-27** - Login lockout: 8 failures per (IP,email) hash within 15 minutes → 15-minute lock. Generic auth errors prevent enumeration.
+- **2026-10-27** - Google sign-in: `coreos/go-oidc` verifier (signature, issuer, audience, expiry) plus `email_verified` check. `oauth2` handles PKCE S256.
+- **2026-10-27** - Onboarding is resumable via `users.onboarding_step`, `onboarding_completed`, and `intents`; registration auto-generates a placeholder username (`user_xxxxxx`) that must be replaced before completion.
+- **2026-10-27** - Event lifecycle: draft → published → closed → results_published (results status set by judging finalization). Unpublish only before registrations. Only drafts are deletable.
+- **2026-10-27** - Event staff (judges/co-organizers) invited by email with bearer invite tokens; acceptance requires the logged-in account email to match. This prevents forwarded-link takeover.
+- **2026-10-27** - Team invites are account-based (by username); join requests are user-initiated. Both require explicit acceptance. Registration rows are created for team members when a team registers; late joiners inherit the team registration answers.
+- **2026-10-27** - Judging judgments are append-only. Each pair has at most one `is_current` row; edits supersede rather than overwrite, preserving an audit trail. Immutability enforced after judging locks.
+- **2026-10-27** - Rate limiting is an in-process fixed-window limiter (240 req/min global, 20 req/min auth). Horizontal scaling would move this to a shared store; documented as tech debt.
+- **2026-10-27** - Added `coreos/go-oidc` and `golang-migrate` beyond the minimal dependency list; both are explicitly justified by the security and migration requirements.
+- **2026-10-27** - Frontend is client-fetched through a shared `api()` helper and `AuthProvider`; Next rewrites `/api/v1/*` to `API_INTERNAL_URL` so the browser stays same-origin and the session cookie works without CORS in the normal path.
+- **2026-10-27** - Compose publishes web on `3100`, API on `8080` and Postgres on `5433`, avoiding collisions with local dev servers (notably an existing `:3000` app on this machine).
+- **2026-10-27** - Team chat connects directly to `NEXT_PUBLIC_WS_BASE` because websocket upgrades cannot go through Next rewrites reliably; Origin is checked server-side.
+- **2026-10-27** - Public health probes: `/healthz` (process up) and `/readyz` (Postgres ping) live outside `/api/v1` and skip authentication.
+- **2026-10-27** - Review/publish responses serialize empty collections as `[]` rather than `null`; the client also normalizes arrays defensively so a rendering path never assumes a non-nil slice.
+- **2026-10-27** - Judge progress includes `last_pair_id`, allowing undo to survive queue completion and page reloads without a separate endpoint.
+- **2026-10-29** - One theme only. The arcade palette is permanent; the paper/light theme, theme switch and theme boot script are removed. `.font-pixel` stays as a class name but maps to Space Grotesk so headings match "Find an event" and "Host an event".
+- **2026-10-29** - Theme colours publish `--*-rgb` triplets so Tailwind opacity modifiers such as `bg-accent/40` and `border-ink/20` resolve correctly. `--accent-2` is red (`#FF5D73`) so destructive controls are red, never cyan.
+- **2026-10-29** - Structured locations add `is_remote`, `country`, `state`, `city` to events and profiles. `events.location` remains the human-readable display string, derived from the structured parts.
+- **2026-10-29** - Registration and submission forms are kind-aware (`event_form_fields.form_kind`). Organizers can merge them per event (`events.merge_registration_submission`); merged registration validates both kinds, separate submissions validate only submission fields.
+- **2026-10-29** - Submission answers are stored in `submissions.answers`, validated server-side against submission field IDs, and returned in organizer, participant and judge payloads. The submit page prefills merged answers from registration but posts only submission keys.
+- **2026-10-29** - Judging configuration is derived from submission and judge counts; the manual numeric form is gone. Assignment and the derived preview are blocked until the submission deadline has passed.
+- **2026-10-29** - Staff invites accept an email or username. Existing accounts are added as `accepted` immediately; unknown emails receive `/invites/staff/{token}` and auto-accept after signup. Team invite links use `/invites/team/{token}` with the same existing-account/new-account behaviour.
+- **2026-10-29** - Notifications refresh with 5-second polling plus focus/visibility refresh rather than a websocket. The header trigger is a bell with an unread count.
 
 ## Data Model Notes
 
 Key tables and invariants:
 
-- `users` — CITEXT unique email + username; username regex `^[a-zA-Z0-9_]{3,30}$`; onboarding step 1–6.
-- `auth_identities` — one row per provider (`password`, `google`); password hash nullable for OAuth-only accounts.
-- `sessions` — `token_hash BYTEA UNIQUE`; expiry index; cascade on user delete.
-- `profiles` — 1:1 with users; name/college/course/year.
-- `events` — slug unique, organizer, lifecycle status, judging status, JSONB `criteria` (array of `{name,description}`), JSONB `judging_config` (`{target_comparisons,judge_budget,anchor_count}`), generated `search_vector` + GIN index.
-- `event_form_fields` — schema-driven registration fields; type CHECK; options JSONB; ordered.
-- `event_staff` — `(event_id,email,role)` unique; `invite_token` unique; accepted rows carry `user_id`.
-- `teams` — `(event_id,name)` unique; owner. `team_members` stores `event_id` with a composite FK back to `teams(event_id,id)` and a unique `(event_id,user_id)` index, so the database itself prevents a user joining two teams in one event; max size is checked under `SELECT … FOR UPDATE`.
-- `team_invites` / `team_join_requests` — `(team_id,user)` unique; pending → accepted/rejected/cancelled.
-- `registrations` — `(event_id,user_id)` unique; `team_id` links team entry; answers JSONB.
-- `submissions` — one per registration; partial unique `(event_id,team_id) WHERE team_id IS NOT NULL`.
-- `judging_pairs` — canonical `submission_a < submission_b`; left/right randomization via `left_submission`; unique `(judge_id,a,b)`; status pending/judged/skipped.
-- `judgments` — append-only; partial unique current per pair; winner must be one of the pair (service invariant); `skipped`/`conflict` flags.
-- `event_results` — `(event_id,rank)` unique; `(event_id,submission_id)` PK; only written when publishing.
-- `audit_log` — append-only JSONB metadata.
+- `users` - CITEXT unique email + username; username regex `^[a-zA-Z0-9_]{3,30}$`; onboarding step 1-7.
+- `auth_identities` - one row per provider (`password`, `google`); password hash nullable for OAuth-only accounts.
+- `sessions` - `token_hash BYTEA UNIQUE`; expiry index; cascade on user delete.
+- `profiles` - 1:1 with users; name/college/course/year plus optional `country`, `state`, `city`.
+- `events` - slug unique, organizer, lifecycle status, judging status, JSONB `criteria` (array of `{name,description}`), JSONB `judging_config` (`{target_comparisons,judge_budget,anchor_count}`), structured location (`is_remote`, `country`, `state`, `city`) plus display `location`, `merge_registration_submission`, generated `search_vector` + GIN index.
+- `event_form_fields` - schema-driven fields with `form_kind` (`registration` or `submission`); type CHECK; options JSONB; ordered.
+- `event_staff` - `(event_id,email,role)` unique; `invite_token` unique; accepted rows carry `user_id`.
+- `teams` - `(event_id,name)` unique; owner; optional unique `invite_token` for shareable invite links. `team_members` stores `event_id` with a composite FK back to `teams(event_id,id)` and a unique `(event_id,user_id)` index, so the database itself prevents a user joining two teams in one event; max size is checked under `SELECT ... FOR UPDATE`.
+- `team_invites` / `team_join_requests` - `(team_id,user)` unique; pending to accepted/rejected/cancelled.
+- `registrations` - `(event_id,user_id)` unique; `team_id` links team entry; answers JSONB (merged events include submission fields).
+- `submissions` - one per registration; partial unique `(event_id,team_id) WHERE team_id IS NOT NULL`; custom `answers` JSONB keyed by submission field ID.
+- `judging_pairs` - canonical `submission_a < submission_b`; left/right randomization via `left_submission`; unique `(judge_id,a,b)`; status pending/judged/skipped.
+- `judgments` - append-only; partial unique current per pair; winner must be one of the pair (service invariant); `skipped`/`conflict` flags.
+- `event_results` - `(event_id,rank)` unique; `(event_id,submission_id)` PK; only written when publishing.
+- `audit_log` - append-only JSONB metadata.
 - Supporting: bookmarks, notifications, chat_messages, feedback_reports.
 
 ## Judging System
@@ -113,18 +121,18 @@ Implemented in `internal/judging`:
 - [ ] Phase 8 polish: OpenAPI file, Lighthouse/axe pass, real email provider
 
 PRD coverage:
-- 1.1 register/login/logout — done
-- 1.2 unique username / change password — done
-- 1.3 view/edit profile — done
-- 1.4 profile autofill — done
-- 1.5 authorization — server-side checks on every endpoint
-- 1.6 Google sign-in — done (needs credentials to exercise)
-- 2.1–2.4 discovery/detail/search/filters — done
-- 3.1–3.5 hosting CRUD/lifecycle/forms/staff/criteria/finalize — done
-- 4.x teams and registration — done
-- 5.x submissions — done
-- 6.x pairwise judging, CrowdBT, review/publish — done
-- 7.1–7.5 dashboard/settings/feedback — done (feedback email delivery is P1)
+- 1.1 register/login/logout - done
+- 1.2 unique username / change password - done
+- 1.3 view/edit profile - done
+- 1.4 profile autofill - done
+- 1.5 authorization - server-side checks on every endpoint
+- 1.6 Google sign-in - done (needs credentials to exercise)
+- 2.1–2.4 discovery/detail/search/filters - done
+- 3.1–3.5 hosting CRUD/lifecycle/forms/staff/criteria/finalize - done
+- 4.x teams and registration - done
+- 5.x submissions - done
+- 6.x pairwise judging, CrowdBT, review/publish - done
+- 7.1–7.5 dashboard/settings/feedback - done (feedback email delivery is P1)
 
 ## How To Run
 
@@ -194,7 +202,8 @@ Demo accounts: `host@compytition.local` (organizer), `ava@`, `milo@`, `rin@compy
 - Session `TouchSession` writes on every authenticated request; could debounce.
 - Event search uses `websearch_to_tsquery` + title ILIKE fallback; no trigram index for ILIKE yet.
 - Profile `year_of_study` is a pointer int16; send `null`, not `0`.
-- Team invites are by username, not email. Staff invites are email-bound links.
+- Team invites support username, email and shareable links. Staff invites support email or username plus a link for new accounts.
+- Notifications use 5-second polling; a shared WebSocket/SSE channel would scale better.
 - Deadline reminders and emailed invites are P1; no email provider abstraction yet.
 - Chat is a single in-process hub; multi-instance deployments need pub/sub.
 - The seeded demo event is pre-judged and published, so create a new event to exercise the judge flow end to end.
@@ -211,13 +220,14 @@ Demo accounts: `host@compytition.local` (organizer), `ava@`, `milo@`, `rin@compy
 
 Newest first.
 
-- **2026-10-27** — Review hardening pass. Teams: leaving stays available even when the team has a submission (the submission is handed to a remaining registered member instead of cascading away), and the roster/pending lists are only exposed to members and event managers. Judging: split decisions are grouped by submission pair (not per-judge pair row), accepted judges with no judgments appear at the Beta(3,1) prior, and undoing a conflict restores the pairs that conflict skipped. Events: status transitions lock the event row, judge invites/removals/acceptance are blocked once judging starts, co-organizers appear in `/host/events`, and staff invite tokens are redacted from request logs. Auth/config: login-lock windows reset correctly, auto-generated placeholder usernames cannot be chosen, malformed numeric/boolean env vars fail startup, and hourly cleanup covers OAuth states and stale login attempts. API: dashboard errors propagate instead of returning empty sections, draft bookmarks 404, and submission status filters are validated. Web: `safeNext` closes open redirects in login/register/onboarding and onboarding preserves the intended destination. Rebuilt in Compose and smoke-tested end to end against Postgres (team hand-off, roster privacy, lifecycle guards, split review, conflict undo, log redaction).
-- **2026-10-27** — Closed the last review gaps: draft registration forms now 404 for anonymous visitors (organizer/staff/judge only), the feedback admin queue honours the database `is_admin` flag and not just `ADMIN_EMAILS`, publishing results stamps `judging_locked_at`, and the web app sends baseline security headers.
-- **2026-10-27** — Enforced one team per user per event in the database. `team_members` now carries `event_id` with a unique `(event_id,user_id)` index (migration `000002`), closing a race between concurrent creates/joins that the service-layer check could miss.
-- **2026-10-27** — Fixed WebSocket upgrades through the logging middleware: the response wrapper now preserves `http.Hijacker` and `http.Flusher` (plus `Unwrap`), with unit coverage. Before this, team chat upgrades failed with “response does not implement http.Hijacker”.
-- **2026-10-27** — Fixed the Compose web build: `API_INTERNAL_URL` is now a build arg because Next bakes rewrite destinations into the standalone build. The image previously proxied `/api/v1` to `localhost:8080` inside the web container and returned 500s.
-- **2026-10-27** — Completed the Next.js app: landing, discovery, event detail with bookmarks, registration, team management + websocket chat, submission editor, dashboard, settings, organizer home and the tabbed manage console (overview/form/participants/submissions/judges/judging), judge queue and pairwise comparison screen, staff invite acceptance. Added Vitest coverage for the API client and formatters, fixed Next config loading under TypeScript 5.9, and pinned the toolchain.
-- **2026-10-27** — Browser smoke test found and fixed: judging review rendering crashed when `warnings` was JSON `null` (server now emits `[]`, client defaults arrays); judges can now undo their last call after the queue is empty or the page reloads (`last_pair_id` in progress); seed no longer ships two submissions titled “Loopback”. Added Docker Compose, Make targets, `.env.example`, CI workflow, README, and refreshed this file + `endpoints.md`.
+- **2026-10-29** - Frontend/design pass covering all 32 requested changes: removed light mode and the theme switch, fixed duplicate account links, removed landing stage labels and blinking cursors, hid auth-only nav while logged out, replaced hero copy, aligned the wordmark without an oversized sticker, widened the auth card, added red dismissible auth toasts and password eye toggles, added the five-item password checklist and submit gating, fixed own-username availability, added curated college/course suggestions, sequential country/state/city onboarding, removed em dashes, added remote-first structured event locations and location search including "use my location", added contact-email autofill, derived judging settings and deadline gating, email/username/link staff invites with auto-accept, a bell notification trigger with polling, red destructive controls, readable headings, feedback-only footer, merged forms, max-only team size, spacious event cards with save/share, larger save controls, team invite links, and `username not found` errors. Submission answers are now validated server-side and shown to organizers and judges. Docs and browser smoke tests were refreshed.
+- **2026-10-27** - Review hardening pass. Teams: leaving stays available even when the team has a submission (the submission is handed to a remaining registered member instead of cascading away), and the roster/pending lists are only exposed to members and event managers. Judging: split decisions are grouped by submission pair (not per-judge pair row), accepted judges with no judgments appear at the Beta(3,1) prior, and undoing a conflict restores the pairs that conflict skipped. Events: status transitions lock the event row, judge invites/removals/acceptance are blocked once judging starts, co-organizers appear in `/host/events`, and staff invite tokens are redacted from request logs. Auth/config: login-lock windows reset correctly, auto-generated placeholder usernames cannot be chosen, malformed numeric/boolean env vars fail startup, and hourly cleanup covers OAuth states and stale login attempts. API: dashboard errors propagate instead of returning empty sections, draft bookmarks 404, and submission status filters are validated. Web: `safeNext` closes open redirects in login/register/onboarding and onboarding preserves the intended destination. Rebuilt in Compose and smoke-tested end to end against Postgres (team hand-off, roster privacy, lifecycle guards, split review, conflict undo, log redaction).
+- **2026-10-27** - Closed the last review gaps: draft registration forms now 404 for anonymous visitors (organizer/staff/judge only), the feedback admin queue honours the database `is_admin` flag and not just `ADMIN_EMAILS`, publishing results stamps `judging_locked_at`, and the web app sends baseline security headers.
+- **2026-10-27** - Enforced one team per user per event in the database. `team_members` now carries `event_id` with a unique `(event_id,user_id)` index (migration `000002`), closing a race between concurrent creates/joins that the service-layer check could miss.
+- **2026-10-27** - Fixed WebSocket upgrades through the logging middleware: the response wrapper now preserves `http.Hijacker` and `http.Flusher` (plus `Unwrap`), with unit coverage. Before this, team chat upgrades failed with “response does not implement http.Hijacker”.
+- **2026-10-27** - Fixed the Compose web build: `API_INTERNAL_URL` is now a build arg because Next bakes rewrite destinations into the standalone build. The image previously proxied `/api/v1` to `localhost:8080` inside the web container and returned 500s.
+- **2026-10-27** - Completed the Next.js app: landing, discovery, event detail with bookmarks, registration, team management + websocket chat, submission editor, dashboard, settings, organizer home and the tabbed manage console (overview/form/participants/submissions/judges/judging), judge queue and pairwise comparison screen, staff invite acceptance. Added Vitest coverage for the API client and formatters, fixed Next config loading under TypeScript 5.9, and pinned the toolchain.
+- **2026-10-27** - Browser smoke test found and fixed: judging review rendering crashed when `warnings` was JSON `null` (server now emits `[]`, client defaults arrays); judges can now undo their last call after the queue is empty or the page reloads (`last_pair_id` in progress); seed no longer ships two submissions titled “Loopback”. Added Docker Compose, Make targets, `.env.example`, CI workflow, README, and refreshed this file + `endpoints.md`.
 
-- **2026-10-27** — Implemented initial schema (26 tables), SQLC generation, config, pgx store/tx helper, embedded golang-migrate runner, middleware chain (request ID, logging, recovery, security headers, CORS, CSRF origin checks, rate limit, session loading), auth service (argon2id, sessions, lockout, Google OIDC, profile/onboarding/username/password), event service (CRUD, lifecycle, public discovery with search/filters, form builder, staff invites/acceptance, judging config), auth/events HTTP handlers, server wiring, API entrypoint. Added `apperr` + centralized error mapping. Created `endpoints.md` and this context file.
-- **2026-10-27** — Repo restructured to `apps/api` and `apps/web`; installed Go/Node dependencies and sqlc v1.31.1.
+- **2026-10-27** - Implemented initial schema (26 tables), SQLC generation, config, pgx store/tx helper, embedded golang-migrate runner, middleware chain (request ID, logging, recovery, security headers, CORS, CSRF origin checks, rate limit, session loading), auth service (argon2id, sessions, lockout, Google OIDC, profile/onboarding/username/password), event service (CRUD, lifecycle, public discovery with search/filters, form builder, staff invites/acceptance, judging config), auth/events HTTP handlers, server wiring, API entrypoint. Added `apperr` + centralized error mapping. Created `endpoints.md` and this context file.
+- **2026-10-27** - Repo restructured to `apps/api` and `apps/web`; installed Go/Node dependencies and sqlc v1.31.1.

@@ -1,15 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useCallback, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api, errorMessage, fieldErrors } from "@/lib/api";
 import { safeNext } from "@/lib/utils";
 import { useAuth } from "@/components/auth-provider";
-import { Alert } from "@/components/ui/feedback";
+import { ErrorToast } from "@/components/ui/toast";
+import { PasswordChecklist, PasswordInput, passwordIsStrong } from "@/components/ui/password-input";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
 import AuthShell from "@/app/(auth)/auth-shell";
+
+function AuthSwitchFooter() {
+  const params = useSearchParams();
+  const next = safeNext(params.get("next"), "");
+  return (
+    <>
+      Already registered?{" "}
+      <Link
+        href={next ? `/login?next=${encodeURIComponent(next)}` : "/login"}
+        className="font-semibold chunky-link"
+      >
+        Sign in
+      </Link>
+    </>
+  );
+}
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -20,6 +37,10 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const clearError = useCallback(() => setError(null), []);
+  const strong = passwordIsStrong(password);
+  const matches = confirm.length > 0 && confirm === password;
+  const canSubmit = !busy && strong && matches && email.trim().length > 0;
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -27,6 +48,10 @@ export default function RegisterPage() {
     setFields({});
     if (password !== confirm) {
       setFields({ password: "Passwords do not match." });
+      return;
+    }
+    if (!passwordIsStrong(password)) {
+      setFields({ password: "Meet every password requirement first." });
       return;
     }
     setBusy(true);
@@ -48,16 +73,13 @@ export default function RegisterPage() {
       title="CREATE ACCOUNT"
       subtitle="One account for hosting, entering and judging. You can change everything later."
       footer={
-        <>
-          Already registered?{" "}
-          <Link href="/login" className="font-semibold chunky-link">
-            Sign in
-          </Link>
-        </>
+        <Suspense fallback="Already registered?">
+          <AuthSwitchFooter />
+        </Suspense>
       }
     >
       <form className="space-y-4" onSubmit={onSubmit} noValidate>
-        {error ? <Alert tone="danger">{error}</Alert> : null}
+        <ErrorToast message={error} onClose={clearError} />
         <Field label="Email" htmlFor="email" error={fields.email}>
           <Input
             id="email"
@@ -73,28 +95,31 @@ export default function RegisterPage() {
           label="Password"
           htmlFor="password"
           error={fields.password}
-          hint="At least 8 characters. A passphrase works well."
+          hint="Use a mix you can remember. The checklist below must be complete."
         >
-          <Input
+          <PasswordInput
             id="password"
-            type="password"
             autoComplete="new-password"
             required
             value={password}
             onChange={(event) => setPassword(event.target.value)}
           />
+          <PasswordChecklist value={password} />
         </Field>
-        <Field label="Confirm password" htmlFor="confirm">
-          <Input
+        <Field
+          label="Confirm password"
+          htmlFor="confirm"
+          error={confirm.length > 0 && !matches ? "Passwords do not match." : undefined}
+        >
+          <PasswordInput
             id="confirm"
-            type="password"
             autoComplete="new-password"
             required
             value={confirm}
             onChange={(event) => setConfirm(event.target.value)}
           />
         </Field>
-        <Button type="submit" className="w-full" disabled={busy}>
+        <Button type="submit" className="w-full" disabled={!canSubmit}>
           {busy ? "Creating…" : "Create account"}
         </Button>
         {googleEnabled ? (

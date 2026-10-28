@@ -1,12 +1,13 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useCallback, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api, errorMessage } from "@/lib/api";
 import { safeNext } from "@/lib/utils";
 import { useAuth } from "@/components/auth-provider";
-import { Alert } from "@/components/ui/feedback";
+import { ErrorToast } from "@/components/ui/toast";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
 import AuthShell from "@/app/(auth)/auth-shell";
@@ -19,6 +20,7 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const clearError = useCallback(() => setError(null), []);
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -42,7 +44,7 @@ function LoginForm() {
 
   return (
     <form className="space-y-4" onSubmit={onSubmit} noValidate>
-      {error ? <Alert tone="danger">{error}</Alert> : null}
+      <ErrorToast message={error} onClose={clearError} />
       <Field label="Email" htmlFor="email">
         <Input
           id="email"
@@ -55,9 +57,8 @@ function LoginForm() {
         />
       </Field>
       <Field label="Password" htmlFor="password">
-        <Input
+        <PasswordInput
           id="password"
-          type="password"
           autoComplete="current-password"
           required
           value={password}
@@ -76,14 +77,23 @@ function LoginForm() {
           Continue with Google
         </a>
       ) : null}
-      <p className="text-sm text-muted">
-        No account?{" "}
-        <Link href="/register" className="chunky-link font-semibold">
-          Create one
-        </Link>
-        .
-      </p>
     </form>
+  );
+}
+
+function AuthSwitchFooter() {
+  const params = useSearchParams();
+  const next = safeNext(params.get("next"), "");
+  return (
+    <>
+      New here?{" "}
+      <Link
+        href={next ? `/register?next=${encodeURIComponent(next)}` : "/register"}
+        className="font-semibold chunky-link"
+      >
+        Create an account
+      </Link>
+    </>
   );
 }
 
@@ -91,14 +101,11 @@ export default function LoginPage() {
   return (
     <AuthShell
       title="SIGN IN"
-      subtitle="Pick up where you left off — registrations, teams and judging queues are waiting."
+      subtitle="Pick up where you left off - registrations, teams and judging queues are waiting."
       footer={
-        <>
-          New here?{" "}
-          <Link href="/register" className="font-semibold chunky-link">
-            Create an account
-          </Link>
-        </>
+        <Suspense fallback="New here?">
+          <AuthSwitchFooter />
+        </Suspense>
       }
     >
       <Suspense fallback={<p className="font-mono text-base">Loading…</p>}>

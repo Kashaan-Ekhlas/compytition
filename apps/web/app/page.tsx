@@ -21,7 +21,7 @@ const steps = [
   {
     n: "03",
     title: "Publish",
-    body: "CrowdBT weighs every comparison — and every judge's reliability — into one ranking.",
+    body: "CrowdBT weighs every comparison and every judge's reliability into one ranking.",
   },
 ];
 
@@ -35,17 +35,13 @@ export default function HomePage() {
         <div className="mx-auto grid max-w-content items-center gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:py-20">
           <div>
             <Badge tone="blue">PAIRWISE JUDGING</Badge>
-            <h1 className="mt-5 font-pixel text-4xl leading-[1.25] sm:text-5xl lg:text-6xl">
-              COMPYTE.
-              <br />
-              <span className="sticker mt-2 inline-block">COMPARE.</span>
-              <br />
-              DECIDE.
+            <h1 className="mt-5 font-pixel text-4xl leading-[1.15] sm:text-5xl lg:text-6xl">
+              <span className="block">COMPYTE.</span>
+              <span className="block">COMPARE.</span>
+              <span className="block">DECIDE.</span>
             </h1>
             <p className="mt-6 max-w-reading text-lg text-muted sm:text-xl">
-              A calm home for hackathons, design jams and science fairs. Judges answer one question at a
-              time — <strong className="text-ink">which of these two is stronger?</strong> — and the
-              ranking falls out of the comparisons.
+              A calm home for hackathons, design jams, and family-friends contests.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               {loading ? null : needsOnboarding ? (
@@ -65,17 +61,11 @@ export default function HomePage() {
                 Browse events
               </Link>
             </div>
-            <p className="mt-4 font-mono text-sm text-muted">
-              No ads. No entry fees. No scores out of ten.
-            </p>
           </div>
           <div className="halftone relative border-2 border-ink bg-accent-3/50 p-5 shadow-hard">
             <CrtIllustration className="h-auto w-full" />
-            <div className="mt-3 flex items-center justify-between border-t-2 border-ink pt-3 font-mono text-sm">
-              <span>JUDGE 2 / 3</span>
-              <span aria-hidden="true" className="animate-blink">
-                ▌
-              </span>
+            <div className="mt-3 border-t-2 border-ink pt-3 text-center font-mono text-sm">
+              Two entries. One choice.
             </div>
           </div>
         </div>

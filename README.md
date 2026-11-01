@@ -4,8 +4,6 @@ Event hosting and **pairwise judging** for hackathons, design jams, science fair
 
 Organizers publish events and build registration forms. Participants enter solo or as a team and submit work. Judges see two submissions at a time and pick the stronger one. [CrowdBT](https://arxiv.org/abs/1802.08924) turns those comparisons into a ranking, with per-judge reliability, coverage checks and split-decision review before results are published.
 
-No numeric scores, no weighted rubrics, no payments, ads or billing.
-
 ## Stack
 
 | Layer | Choice |

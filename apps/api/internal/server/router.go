@@ -10,6 +10,7 @@ import (
 	"compytition/internal/config"
 	"compytition/internal/db"
 	"compytition/internal/httpx"
+	"compytition/internal/uploads"
 )
 
 type API struct {
@@ -57,6 +58,13 @@ func NewRouter(api *API) http.Handler {
 	// Profile
 	mux.Handle("GET /api/v1/profile", RequireAuth(http.HandlerFunc(authHandler.MeProfile)))
 	mux.Handle("PUT /api/v1/profile", RequireAuth(http.HandlerFunc(authHandler.UpdateProfile)))
+
+	// Uploads. Avatars and banners are public when read; attachments are
+	// authorised per request inside the handler.
+	uploadHandler := uploads.NewHandler(uploads.NewService(api.Store, api.Cfg, api.Log), api.Log)
+	mux.Handle("POST /api/v1/uploads", RequireAuth(http.HandlerFunc(uploadHandler.Create)))
+	mux.Handle("GET /api/v1/uploads/{id}", http.HandlerFunc(uploadHandler.Get))
+	mux.Handle("DELETE /api/v1/profile/avatar", RequireAuth(http.HandlerFunc(uploadHandler.DeleteAvatar)))
 
 	// Feature routes are registered by the domain modules below.
 	registerEventRoutes(mux, api)

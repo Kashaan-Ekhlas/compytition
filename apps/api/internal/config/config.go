@@ -25,6 +25,7 @@ type Config struct {
 	AdminEmails     map[string]bool
 	LogLevel        string
 	RateLimitPerMin int
+	UploadDir       string
 }
 
 func Load() (*Config, error) {
@@ -58,6 +59,7 @@ func Load() (*Config, error) {
 		AdminEmails:     parseEmails(os.Getenv("ADMIN_EMAILS")),
 		LogLevel:        env("LOG_LEVEL", "info"),
 		RateLimitPerMin: rateLimit,
+		UploadDir:       env("UPLOAD_DIR", "./uploads"),
 	}
 
 	if cfg.DatabaseURL == "" {

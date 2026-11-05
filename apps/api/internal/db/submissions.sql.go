@@ -40,9 +40,10 @@ func (q *Queries) CountSubmissionJudgments(ctx context.Context, submissionA uuid
 const createSubmission = `-- name: CreateSubmission :one
 INSERT INTO submissions (
     event_id, registration_id, team_id, created_by, title, description,
-    repo_url, demo_url, file_url, status, answers
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-RETURNING id, event_id, registration_id, team_id, created_by, title, description, repo_url, demo_url, file_url, status, created_at, updated_at, answers
+    repo_url, demo_url, file_url, file_name, file_mime, file_preview_url,
+    status, answers
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+RETURNING id, event_id, registration_id, team_id, created_by, title, description, repo_url, demo_url, file_url, status, created_at, updated_at, answers, file_name, file_mime, file_preview_url
 `
 
 type CreateSubmissionParams struct {
@@ -55,6 +56,9 @@ type CreateSubmissionParams struct {
 	RepoUrl        string     `json:"repo_url"`
 	DemoUrl        string     `json:"demo_url"`
 	FileUrl        string     `json:"file_url"`
+	FileName       string     `json:"file_name"`
+	FileMime       string     `json:"file_mime"`
+	FilePreviewUrl string     `json:"file_preview_url"`
 	Status         string     `json:"status"`
 	Answers        []byte     `json:"answers"`
 }
@@ -70,6 +74,9 @@ func (q *Queries) CreateSubmission(ctx context.Context, arg CreateSubmissionPara
 		arg.RepoUrl,
 		arg.DemoUrl,
 		arg.FileUrl,
+		arg.FileName,
+		arg.FileMime,
+		arg.FilePreviewUrl,
 		arg.Status,
 		arg.Answers,
 	)
@@ -89,12 +96,15 @@ func (q *Queries) CreateSubmission(ctx context.Context, arg CreateSubmissionPara
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Answers,
+		&i.FileName,
+		&i.FileMime,
+		&i.FilePreviewUrl,
 	)
 	return i, err
 }
 
 const getSubmissionByID = `-- name: GetSubmissionByID :one
-SELECT id, event_id, registration_id, team_id, created_by, title, description, repo_url, demo_url, file_url, status, created_at, updated_at, answers FROM submissions WHERE id = $1
+SELECT id, event_id, registration_id, team_id, created_by, title, description, repo_url, demo_url, file_url, status, created_at, updated_at, answers, file_name, file_mime, file_preview_url FROM submissions WHERE id = $1
 `
 
 func (q *Queries) GetSubmissionByID(ctx context.Context, id uuid.UUID) (Submission, error) {
@@ -115,12 +125,15 @@ func (q *Queries) GetSubmissionByID(ctx context.Context, id uuid.UUID) (Submissi
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Answers,
+		&i.FileName,
+		&i.FileMime,
+		&i.FilePreviewUrl,
 	)
 	return i, err
 }
 
 const getSubmissionByRegistration = `-- name: GetSubmissionByRegistration :one
-SELECT id, event_id, registration_id, team_id, created_by, title, description, repo_url, demo_url, file_url, status, created_at, updated_at, answers FROM submissions WHERE registration_id = $1
+SELECT id, event_id, registration_id, team_id, created_by, title, description, repo_url, demo_url, file_url, status, created_at, updated_at, answers, file_name, file_mime, file_preview_url FROM submissions WHERE registration_id = $1
 `
 
 func (q *Queries) GetSubmissionByRegistration(ctx context.Context, registrationID *uuid.UUID) (Submission, error) {
@@ -141,12 +154,15 @@ func (q *Queries) GetSubmissionByRegistration(ctx context.Context, registrationI
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Answers,
+		&i.FileName,
+		&i.FileMime,
+		&i.FilePreviewUrl,
 	)
 	return i, err
 }
 
 const getSubmissionByTeam = `-- name: GetSubmissionByTeam :one
-SELECT id, event_id, registration_id, team_id, created_by, title, description, repo_url, demo_url, file_url, status, created_at, updated_at, answers FROM submissions WHERE event_id = $1 AND team_id = $2
+SELECT id, event_id, registration_id, team_id, created_by, title, description, repo_url, demo_url, file_url, status, created_at, updated_at, answers, file_name, file_mime, file_preview_url FROM submissions WHERE event_id = $1 AND team_id = $2
 `
 
 type GetSubmissionByTeamParams struct {
@@ -172,12 +188,15 @@ func (q *Queries) GetSubmissionByTeam(ctx context.Context, arg GetSubmissionByTe
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Answers,
+		&i.FileName,
+		&i.FileMime,
+		&i.FilePreviewUrl,
 	)
 	return i, err
 }
 
 const getSubmissionForUser = `-- name: GetSubmissionForUser :one
-SELECT s.id, s.event_id, s.registration_id, s.team_id, s.created_by, s.title, s.description, s.repo_url, s.demo_url, s.file_url, s.status, s.created_at, s.updated_at, s.answers FROM submissions s
+SELECT s.id, s.event_id, s.registration_id, s.team_id, s.created_by, s.title, s.description, s.repo_url, s.demo_url, s.file_url, s.status, s.created_at, s.updated_at, s.answers, s.file_name, s.file_mime, s.file_preview_url FROM submissions s
 WHERE s.event_id = $1
   AND (
       s.created_by = $2
@@ -211,13 +230,17 @@ func (q *Queries) GetSubmissionForUser(ctx context.Context, arg GetSubmissionFor
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Answers,
+		&i.FileName,
+		&i.FileMime,
+		&i.FilePreviewUrl,
 	)
 	return i, err
 }
 
 const listMySubmissions = `-- name: ListMySubmissions :many
 SELECT s.id, s.event_id, s.registration_id, s.team_id, s.created_by, s.title,
-       s.description, s.repo_url, s.demo_url, s.file_url, s.status, s.answers,
+       s.description, s.repo_url, s.demo_url, s.file_url,
+       s.file_name, s.file_mime, s.file_preview_url, s.status, s.answers,
        s.created_at, s.updated_at,
        e.title AS event_title, e.slug AS event_slug, e.submission_deadline,
        t.name AS team_name
@@ -242,6 +265,9 @@ type ListMySubmissionsRow struct {
 	RepoUrl            string     `json:"repo_url"`
 	DemoUrl            string     `json:"demo_url"`
 	FileUrl            string     `json:"file_url"`
+	FileName           string     `json:"file_name"`
+	FileMime           string     `json:"file_mime"`
+	FilePreviewUrl     string     `json:"file_preview_url"`
 	Status             string     `json:"status"`
 	Answers            []byte     `json:"answers"`
 	CreatedAt          time.Time  `json:"created_at"`
@@ -272,6 +298,9 @@ func (q *Queries) ListMySubmissions(ctx context.Context, createdBy uuid.UUID) ([
 			&i.RepoUrl,
 			&i.DemoUrl,
 			&i.FileUrl,
+			&i.FileName,
+			&i.FileMime,
+			&i.FilePreviewUrl,
 			&i.Status,
 			&i.Answers,
 			&i.CreatedAt,
@@ -293,7 +322,8 @@ func (q *Queries) ListMySubmissions(ctx context.Context, createdBy uuid.UUID) ([
 
 const listSubmissionsForEvent = `-- name: ListSubmissionsForEvent :many
 SELECT s.id, s.event_id, s.registration_id, s.team_id, s.created_by, s.title,
-       s.description, s.repo_url, s.demo_url, s.file_url, s.status, s.answers,
+       s.description, s.repo_url, s.demo_url, s.file_url,
+       s.file_name, s.file_mime, s.file_preview_url, s.status, s.answers,
        s.created_at, s.updated_at,
        u.username AS creator_username, p.full_name AS creator_name,
        t.name AS team_name,
@@ -326,6 +356,9 @@ type ListSubmissionsForEventRow struct {
 	RepoUrl         string     `json:"repo_url"`
 	DemoUrl         string     `json:"demo_url"`
 	FileUrl         string     `json:"file_url"`
+	FileName        string     `json:"file_name"`
+	FileMime        string     `json:"file_mime"`
+	FilePreviewUrl  string     `json:"file_preview_url"`
 	Status          string     `json:"status"`
 	Answers         []byte     `json:"answers"`
 	CreatedAt       time.Time  `json:"created_at"`
@@ -361,6 +394,9 @@ func (q *Queries) ListSubmissionsForEvent(ctx context.Context, arg ListSubmissio
 			&i.RepoUrl,
 			&i.DemoUrl,
 			&i.FileUrl,
+			&i.FileName,
+			&i.FileMime,
+			&i.FilePreviewUrl,
 			&i.Status,
 			&i.Answers,
 			&i.CreatedAt,
@@ -382,7 +418,8 @@ func (q *Queries) ListSubmissionsForEvent(ctx context.Context, arg ListSubmissio
 
 const listSubmissionsForJudging = `-- name: ListSubmissionsForJudging :many
 SELECT s.id, s.event_id, s.registration_id, s.team_id, s.created_by, s.title,
-       s.description, s.repo_url, s.demo_url, s.file_url, s.status, s.answers,
+       s.description, s.repo_url, s.demo_url, s.file_url,
+       s.file_name, s.file_mime, s.file_preview_url, s.status, s.answers,
        s.created_at, s.updated_at,
        u.username AS creator_username, p.full_name AS creator_name,
        t.name AS team_name
@@ -410,6 +447,9 @@ type ListSubmissionsForJudgingRow struct {
 	RepoUrl         string     `json:"repo_url"`
 	DemoUrl         string     `json:"demo_url"`
 	FileUrl         string     `json:"file_url"`
+	FileName        string     `json:"file_name"`
+	FileMime        string     `json:"file_mime"`
+	FilePreviewUrl  string     `json:"file_preview_url"`
 	Status          string     `json:"status"`
 	Answers         []byte     `json:"answers"`
 	CreatedAt       time.Time  `json:"created_at"`
@@ -439,6 +479,9 @@ func (q *Queries) ListSubmissionsForJudging(ctx context.Context, eventID uuid.UU
 			&i.RepoUrl,
 			&i.DemoUrl,
 			&i.FileUrl,
+			&i.FileName,
+			&i.FileMime,
+			&i.FilePreviewUrl,
 			&i.Status,
 			&i.Answers,
 			&i.CreatedAt,
@@ -477,20 +520,24 @@ func (q *Queries) ReassignSubmission(ctx context.Context, arg ReassignSubmission
 const updateSubmission = `-- name: UpdateSubmission :one
 UPDATE submissions
 SET title = $2, description = $3, repo_url = $4, demo_url = $5,
-    file_url = $6, status = $7, answers = $8, updated_at = now()
+    file_url = $6, file_name = $7, file_mime = $8, file_preview_url = $9,
+    status = $10, answers = $11, updated_at = now()
 WHERE id = $1
-RETURNING id, event_id, registration_id, team_id, created_by, title, description, repo_url, demo_url, file_url, status, created_at, updated_at, answers
+RETURNING id, event_id, registration_id, team_id, created_by, title, description, repo_url, demo_url, file_url, status, created_at, updated_at, answers, file_name, file_mime, file_preview_url
 `
 
 type UpdateSubmissionParams struct {
-	ID          uuid.UUID `json:"id"`
-	Title       string    `json:"title"`
-	Description string    `json:"description"`
-	RepoUrl     string    `json:"repo_url"`
-	DemoUrl     string    `json:"demo_url"`
-	FileUrl     string    `json:"file_url"`
-	Status      string    `json:"status"`
-	Answers     []byte    `json:"answers"`
+	ID             uuid.UUID `json:"id"`
+	Title          string    `json:"title"`
+	Description    string    `json:"description"`
+	RepoUrl        string    `json:"repo_url"`
+	DemoUrl        string    `json:"demo_url"`
+	FileUrl        string    `json:"file_url"`
+	FileName       string    `json:"file_name"`
+	FileMime       string    `json:"file_mime"`
+	FilePreviewUrl string    `json:"file_preview_url"`
+	Status         string    `json:"status"`
+	Answers        []byte    `json:"answers"`
 }
 
 func (q *Queries) UpdateSubmission(ctx context.Context, arg UpdateSubmissionParams) (Submission, error) {
@@ -501,6 +548,9 @@ func (q *Queries) UpdateSubmission(ctx context.Context, arg UpdateSubmissionPara
 		arg.RepoUrl,
 		arg.DemoUrl,
 		arg.FileUrl,
+		arg.FileName,
+		arg.FileMime,
+		arg.FilePreviewUrl,
 		arg.Status,
 		arg.Answers,
 	)
@@ -520,6 +570,9 @@ func (q *Queries) UpdateSubmission(ctx context.Context, arg UpdateSubmissionPara
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Answers,
+		&i.FileName,
+		&i.FileMime,
+		&i.FilePreviewUrl,
 	)
 	return i, err
 }

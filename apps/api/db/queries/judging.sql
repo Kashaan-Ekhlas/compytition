@@ -27,11 +27,15 @@ SELECT p.id AS pair_id, p.event_id, p.submission_a, p.submission_b,
        p.left_submission, p.position,
        a.title AS a_title, a.description AS a_description,
        a.repo_url AS a_repo_url, a.demo_url AS a_demo_url,
-       a.file_url AS a_file_url, a.team_id AS a_team_id,
+       a.file_url AS a_file_url, a.file_name AS a_file_name,
+       a.file_mime AS a_file_mime, a.file_preview_url AS a_file_preview_url,
+       a.team_id AS a_team_id,
        ta.name AS a_team_name, ua.username AS a_creator,
        b.title AS b_title, b.description AS b_description,
        b.repo_url AS b_repo_url, b.demo_url AS b_demo_url,
-       b.file_url AS b_file_url, b.team_id AS b_team_id,
+       b.file_url AS b_file_url, b.file_name AS b_file_name,
+       b.file_mime AS b_file_mime, b.file_preview_url AS b_file_preview_url,
+       b.team_id AS b_team_id,
        tb.name AS b_team_name, ub.username AS b_creator
 FROM judging_pairs p
 JOIN submissions a ON a.id = p.submission_a

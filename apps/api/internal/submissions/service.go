@@ -56,6 +56,9 @@ type View struct {
 	RepoURL            string         `json:"repo_url"`
 	DemoURL            string         `json:"demo_url"`
 	FileURL            string         `json:"file_url"`
+	FileName           string         `json:"file_name"`
+	FileMime           string         `json:"file_mime"`
+	FilePreviewURL     string         `json:"file_preview_url"`
 	Answers            map[string]any `json:"answers"`
 	Status             string         `json:"status"`
 	CreatedAt          time.Time      `json:"created_at"`
@@ -76,6 +79,10 @@ func (s *Service) Create(ctx context.Context, userID, eventID uuid.UUID, in Inpu
 	if err := s.validateAnswers(ctx, eventID, in.Answers); err != nil {
 		return nil, err
 	}
+	attachment, err := s.resolveAttachment(ctx, userID, eventID, in.FileURL, nil)
+	if err != nil {
+		return nil, err
+	}
 	reg, err := s.store.GetRegistrationForEventUser(ctx, db.GetRegistrationForEventUserParams{EventID: eventID, UserID: userID})
 	if err != nil || reg.Status != "registered" {
 		return nil, apperr.Invalid("registration", "Register for this event before submitting.")
@@ -92,7 +99,9 @@ func (s *Service) Create(ctx context.Context, userID, eventID uuid.UUID, in Inpu
 	sub, err := s.store.CreateSubmission(ctx, db.CreateSubmissionParams{
 		EventID: eventID, RegistrationID: &reg.ID, TeamID: reg.TeamID, CreatedBy: userID,
 		Title: in.Title, Description: in.Description, RepoUrl: in.RepoURL,
-		DemoUrl: in.DemoURL, FileUrl: in.FileURL, Status: normalizedStatus(in.Status),
+		DemoUrl: in.DemoURL, FileUrl: attachment.URL, FileName: attachment.Name,
+		FileMime: attachment.Mime, FilePreviewUrl: attachment.Preview,
+		Status:  normalizedStatus(in.Status),
 		Answers: marshalAnswers(in.Answers),
 	})
 	if err != nil {
@@ -137,10 +146,16 @@ func (s *Service) Update(ctx context.Context, userID, submissionID uuid.UUID, in
 	if err := s.validateAnswers(ctx, sub.EventID, in.Answers); err != nil {
 		return nil, err
 	}
+	attachment, err := s.resolveAttachment(ctx, userID, sub.EventID, in.FileURL, &sub)
+	if err != nil {
+		return nil, err
+	}
 	updated, err := s.store.UpdateSubmission(ctx, db.UpdateSubmissionParams{
 		ID: submissionID, Title: in.Title, Description: in.Description,
-		RepoUrl: in.RepoURL, DemoUrl: in.DemoURL, FileUrl: in.FileURL,
-		Status: normalizedStatus(in.Status), Answers: marshalAnswers(in.Answers),
+		RepoUrl: in.RepoURL, DemoUrl: in.DemoURL, FileUrl: attachment.URL,
+		FileName: attachment.Name, FileMime: attachment.Mime,
+		FilePreviewUrl: attachment.Preview,
+		Status:         normalizedStatus(in.Status), Answers: marshalAnswers(in.Answers),
 	})
 	if err != nil {
 		return nil, err
@@ -373,10 +388,13 @@ func validateInput(in *Input) error {
 	if len(in.Description) > 20_000 {
 		fields["description"] = "Keep the description under 20,000 characters."
 	}
-	for key, val := range map[string]string{"repo_url": in.RepoURL, "demo_url": in.DemoURL, "file_url": in.FileURL} {
+	for key, val := range map[string]string{"repo_url": in.RepoURL, "demo_url": in.DemoURL} {
 		if val != "" && !validURL(val) {
 			fields[key] = "Enter a valid http(s) URL."
 		}
+	}
+	if in.FileURL != "" && !validURL(in.FileURL) && !internalUploadPath(in.FileURL) {
+		fields["file_url"] = "Upload a PDF or PowerPoint file."
 	}
 	if in.Status != "" && in.Status != "draft" && in.Status != "submitted" {
 		fields["status"] = "Status must be draft or submitted."
@@ -385,6 +403,77 @@ func validateInput(in *Input) error {
 		return apperr.InvalidFields(fields)
 	}
 	return nil
+}
+
+type attachment struct {
+	URL     string
+	Name    string
+	Mime    string
+	Preview string
+}
+
+// resolveAttachment turns the submission's file URL into stored metadata. A
+// teammate may keep the file already attached to their team submission; a new
+// upload must belong to the user making the edit.
+func (s *Service) resolveAttachment(ctx context.Context, userID, eventID uuid.UUID, raw string, existing *db.Submission) (attachment, error) {
+	if raw == "" {
+		return attachment{}, nil
+	}
+	if existing != nil && raw == existing.FileUrl {
+		return attachment{
+			URL: existing.FileUrl, Name: existing.FileName,
+			Mime: existing.FileMime, Preview: existing.FilePreviewUrl,
+		}, nil
+	}
+	if !internalUploadPath(raw) {
+		if validURL(raw) {
+			return attachment{URL: raw}, nil
+		}
+		return attachment{}, apperr.Invalid("file_url", "Upload a PDF or PowerPoint file.")
+	}
+	id, ok := uploadIDFromPath(raw)
+	if !ok {
+		return attachment{}, apperr.Invalid("file_url", "Upload a PDF or PowerPoint file.")
+	}
+	up, err := s.store.GetUpload(ctx, id)
+	if err != nil || up.Kind != "attachment" || up.OwnerID != userID {
+		return attachment{}, apperr.Invalid("file_url", "Upload your own PDF or PowerPoint file.")
+	}
+	if up.EventID != nil && *up.EventID != eventID {
+		return attachment{}, apperr.Invalid("file_url", "That file belongs to a different event.")
+	}
+	preview := ""
+	switch {
+	case up.PreviewKey != "":
+		preview = "/api/v1/uploads/" + id.String() + "?preview=1"
+	case up.MimeType == "application/pdf":
+		preview = "/api/v1/uploads/" + id.String()
+	}
+	return attachment{
+		URL: "/api/v1/uploads/" + id.String(), Name: up.OriginalName,
+		Mime: up.MimeType, Preview: preview,
+	}, nil
+}
+
+func internalUploadPath(raw string) bool {
+	_, ok := uploadIDFromPath(raw)
+	return ok
+}
+
+func uploadIDFromPath(raw string) (uuid.UUID, bool) {
+	const prefix = "/api/v1/uploads/"
+	if !strings.HasPrefix(raw, prefix) {
+		return uuid.Nil, false
+	}
+	rest := strings.TrimPrefix(raw, prefix)
+	if rest == "" || strings.ContainsAny(rest, "/?#") {
+		return uuid.Nil, false
+	}
+	id, err := uuid.Parse(rest)
+	if err != nil {
+		return uuid.Nil, false
+	}
+	return id, true
 }
 
 func submissionOpen(ev db.GetEventByIDRow) error {
@@ -416,7 +505,9 @@ func view(s db.Submission) View {
 	return View{
 		ID: s.ID, EventID: s.EventID, RegistrationID: s.RegistrationID, TeamID: s.TeamID,
 		CreatedBy: s.CreatedBy, Title: s.Title, Description: s.Description,
-		RepoURL: s.RepoUrl, DemoURL: s.DemoUrl, FileURL: s.FileUrl, Status: s.Status,
+		RepoURL: s.RepoUrl, DemoURL: s.DemoUrl, FileURL: s.FileUrl,
+		FileName: s.FileName, FileMime: s.FileMime, FilePreviewURL: s.FilePreviewUrl,
+		Status:    s.Status,
 		Answers:   unmarshalAnswers(s.Answers),
 		CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt,
 	}

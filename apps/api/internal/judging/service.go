@@ -48,6 +48,9 @@ type Submission struct {
 	RepoURL         string         `json:"repo_url"`
 	DemoURL         string         `json:"demo_url"`
 	FileURL         string         `json:"file_url"`
+	FileName        string         `json:"file_name"`
+	FileMime        string         `json:"file_mime"`
+	FilePreviewURL  string         `json:"file_preview_url"`
 	Answers         map[string]any `json:"answers"`
 	TeamID          *uuid.UUID     `json:"team_id"`
 	TeamName        string         `json:"team_name,omitempty"`
@@ -379,11 +382,13 @@ func (s *Service) Next(ctx context.Context, userID, eventID uuid.UUID) (*NextPai
 	a := Submission{
 		ID: p.SubmissionA, Title: p.ATitle, Description: p.ADescription,
 		RepoURL: p.ARepoUrl, DemoURL: p.ADemoUrl, FileURL: p.AFileUrl,
+		FileName: p.AFileName, FileMime: p.AFileMime, FilePreviewURL: p.AFilePreviewUrl,
 		TeamID: p.ATeamID, TeamName: deref(p.ATeamName), CreatorUsername: p.ACreator,
 	}
 	b := Submission{
 		ID: p.SubmissionB, Title: p.BTitle, Description: p.BDescription,
 		RepoURL: p.BRepoUrl, DemoURL: p.BDemoUrl, FileURL: p.BFileUrl,
+		FileName: p.BFileName, FileMime: p.BFileMime, FilePreviewURL: p.BFilePreviewUrl,
 		TeamID: p.BTeamID, TeamName: deref(p.BTeamName), CreatorUsername: p.BCreator,
 	}
 	out.Pair = &PairView{
@@ -717,6 +722,7 @@ func (s *Service) loadSubmissions(ctx context.Context, eventID uuid.UUID) ([]Sub
 		out = append(out, Submission{
 			ID: r.ID, Title: r.Title, Description: r.Description,
 			RepoURL: r.RepoUrl, DemoURL: r.DemoUrl, FileURL: r.FileUrl,
+			FileName: r.FileName, FileMime: r.FileMime, FilePreviewURL: r.FilePreviewUrl,
 			Answers: unmarshalAnswers(r.Answers),
 			TeamID:  r.TeamID, TeamName: deref(r.TeamName),
 			CreatorUsername: r.CreatorUsername, CreatorName: deref(r.CreatorName),

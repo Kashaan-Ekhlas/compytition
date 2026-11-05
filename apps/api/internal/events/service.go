@@ -68,6 +68,7 @@ type EventFields struct {
 	EndsAt               *time.Time  `json:"ends_at"`
 	SubmissionDeadline   *time.Time  `json:"submission_deadline"`
 	Criteria             []Criterion `json:"criteria"`
+	BannerURL            string      `json:"banner_url"`
 }
 
 type EventView struct {
@@ -97,6 +98,7 @@ type EventView struct {
 	EndsAt               *time.Time    `json:"ends_at"`
 	SubmissionDeadline   *time.Time    `json:"submission_deadline"`
 	Criteria             []Criterion   `json:"criteria"`
+	BannerURL            string        `json:"banner_url"`
 	JudgingStatus        string        `json:"judging_status"`
 	JudgingConfig        JudgingConfig `json:"judging_config"`
 	ResultsPublishedAt   *time.Time    `json:"results_published_at"`
@@ -277,8 +279,50 @@ func validateFormFields(in []FormFieldInput) error {
 
 // ── Create / update ────────────────────────────────────────────────────────
 
+// resolveBanner accepts either an empty value, the banner already stored on
+// the event, or a banner upload owned by the acting organizer. This keeps
+// arbitrary external URLs out of the decorative slot.
+func (s *Service) resolveBanner(ctx context.Context, userID uuid.UUID, raw, allowed string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", nil
+	}
+	if allowed != "" && raw == allowed {
+		return allowed, nil
+	}
+	id, ok := uploadIDFromURL(raw)
+	if !ok {
+		return "", apperr.Invalid("banner_url", "Upload a banner image instead of pasting a link.")
+	}
+	up, err := s.store.GetUpload(ctx, id)
+	if err != nil || up.Kind != "banner" || up.OwnerID != userID {
+		return "", apperr.Invalid("banner_url", "Upload a banner image instead of pasting a link.")
+	}
+	return "/api/v1/uploads/" + id.String(), nil
+}
+
+func uploadIDFromURL(raw string) (uuid.UUID, bool) {
+	const prefix = "/api/v1/uploads/"
+	if !strings.HasPrefix(raw, prefix) {
+		return uuid.Nil, false
+	}
+	rest := strings.TrimPrefix(raw, prefix)
+	if rest == "" || strings.ContainsAny(rest, "/?#") {
+		return uuid.Nil, false
+	}
+	id, err := uuid.Parse(rest)
+	if err != nil {
+		return uuid.Nil, false
+	}
+	return id, true
+}
+
 func (s *Service) Create(ctx context.Context, organizerID uuid.UUID, in EventFields) (*EventView, error) {
 	if err := validateEventFields(&in); err != nil {
+		return nil, err
+	}
+	banner, err := s.resolveBanner(ctx, organizerID, in.BannerURL, "")
+	if err != nil {
 		return nil, err
 	}
 	criteria, err := json.Marshal(in.Criteria)
@@ -299,6 +343,7 @@ func (s *Service) Create(ctx context.Context, organizerID uuid.UUID, in EventFie
 			StartsAt: in.StartsAt, EndsAt: in.EndsAt, SubmissionDeadline: in.SubmissionDeadline,
 			Criteria: criteria, IsRemote: in.IsRemote, Country: in.Country, State: in.State,
 			City: in.City, MergeRegistrationSubmission: in.MergeRegistration,
+			BannerUrl: banner,
 		})
 		if lastErr == nil {
 			break
@@ -353,6 +398,10 @@ func (s *Service) Update(ctx context.Context, userID, eventID uuid.UUID, in Even
 	if err != nil {
 		return nil, err
 	}
+	banner, err := s.resolveBanner(ctx, userID, in.BannerURL, ev.BannerUrl)
+	if err != nil {
+		return nil, err
+	}
 	row, err := s.store.UpdateEvent(ctx, db.UpdateEventParams{
 		ID: eventID, Title: in.Title, Description: in.Description, Category: in.Category,
 		ParticipationFormat: in.ParticipationFormat, Eligibility: in.Eligibility,
@@ -362,6 +411,7 @@ func (s *Service) Update(ctx context.Context, userID, eventID uuid.UUID, in Even
 		StartsAt: in.StartsAt, EndsAt: in.EndsAt, SubmissionDeadline: in.SubmissionDeadline,
 		Criteria: criteria, IsRemote: in.IsRemote, Country: in.Country, State: in.State,
 		City: in.City, MergeRegistrationSubmission: in.MergeRegistration,
+		BannerUrl: banner,
 	})
 	if err != nil {
 		return nil, err
@@ -514,6 +564,7 @@ func (s *Service) List(ctx context.Context, f EventFilters) ([]EventView, int64,
 			r.RegistrationClosesAt, r.StartsAt, r.EndsAt, r.SubmissionDeadline,
 			r.Criteria, r.JudgingConfig, r.JudgingStatus, r.ResultsPublishedAt,
 			r.CreatedAt, r.UpdatedAt)
+		v.BannerURL = r.BannerUrl
 		if name, ok := organizers[r.OrganizerID]; ok {
 			v.OrganizerUsername = name
 		} else if u, err := s.store.GetUserByID(ctx, r.OrganizerID); err == nil {
@@ -577,6 +628,7 @@ func (s *Service) hydrate(ctx context.Context, viewerID *uuid.UUID, row db.GetEv
 		row.RegistrationClosesAt, row.StartsAt, row.EndsAt, row.SubmissionDeadline,
 		row.Criteria, row.JudgingConfig, row.JudgingStatus, row.ResultsPublishedAt,
 		row.CreatedAt, row.UpdatedAt)
+	v.BannerURL = row.BannerUrl
 
 	if u, err := s.store.GetUserByID(ctx, row.OrganizerID); err == nil {
 		v.OrganizerUsername = u.Username
@@ -623,6 +675,7 @@ func (s *Service) ListHosted(ctx context.Context, userID uuid.UUID) ([]EventView
 			r.RegistrationClosesAt, r.StartsAt, r.EndsAt, r.SubmissionDeadline,
 			r.Criteria, r.JudgingConfig, r.JudgingStatus, r.ResultsPublishedAt,
 			r.CreatedAt, r.UpdatedAt)
+		v.BannerURL = r.BannerUrl
 		v.CanManage = true
 		regCount, _ := s.store.CountEventRegistrations(ctx, r.ID)
 		subCount, _ := s.store.CountEventSubmissions(ctx, r.ID)
@@ -647,6 +700,7 @@ func (s *Service) ListForJudge(ctx context.Context, userID uuid.UUID) ([]EventVi
 			r.RegistrationClosesAt, r.StartsAt, r.EndsAt, r.SubmissionDeadline,
 			r.Criteria, r.JudgingConfig, r.JudgingStatus, r.ResultsPublishedAt,
 			r.CreatedAt, r.UpdatedAt)
+		v.BannerURL = r.BannerUrl
 		v.IsJudge = true
 		out = append(out, v)
 	}
@@ -961,19 +1015,23 @@ func eventView(id uuid.UUID, slug string, organizerID uuid.UUID, title, descript
 }
 
 func viewFromCreate(r db.CreateEventRow) EventView {
-	return eventView(r.ID, r.Slug, r.OrganizerID, r.Title, r.Description, r.Category,
+	v := eventView(r.ID, r.Slug, r.OrganizerID, r.Title, r.Description, r.Category,
 		r.ParticipationFormat, r.Status, r.Eligibility, r.Rules, r.ContactEmail, r.Location,
 		r.IsRemote, r.Country, r.State, r.City, r.MergeRegistrationSubmission, r.MinTeamSize, r.MaxTeamSize, r.RegistrationOpensAt, r.RegistrationClosesAt,
 		r.StartsAt, r.EndsAt, r.SubmissionDeadline, r.Criteria, r.JudgingConfig,
 		r.JudgingStatus, r.ResultsPublishedAt, r.CreatedAt, r.UpdatedAt)
+	v.BannerURL = r.BannerUrl
+	return v
 }
 
 func viewFromUpdate(r db.UpdateEventRow) EventView {
-	return eventView(r.ID, r.Slug, r.OrganizerID, r.Title, r.Description, r.Category,
+	v := eventView(r.ID, r.Slug, r.OrganizerID, r.Title, r.Description, r.Category,
 		r.ParticipationFormat, r.Status, r.Eligibility, r.Rules, r.ContactEmail, r.Location,
 		r.IsRemote, r.Country, r.State, r.City, r.MergeRegistrationSubmission, r.MinTeamSize, r.MaxTeamSize, r.RegistrationOpensAt, r.RegistrationClosesAt,
 		r.StartsAt, r.EndsAt, r.SubmissionDeadline, r.Criteria, r.JudgingConfig,
 		r.JudgingStatus, r.ResultsPublishedAt, r.CreatedAt, r.UpdatedAt)
+	v.BannerURL = r.BannerUrl
+	return v
 }
 
 func formFieldViews(fields []db.EventFormField) []FormField {

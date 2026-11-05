@@ -8,6 +8,8 @@ next-env.d.ts
 # Go
 apps/api/bin/
 apps/api/tmp/
+apps/api/uploads/
+uploads/
 *.test
 *.out
 coverage.out

@@ -60,7 +60,7 @@ func profileDTO(p *db.Profile) map[string]any {
 	return map[string]any{
 		"full_name": p.FullName, "college": p.College, "course": p.Course,
 		"country": p.Country, "state": p.State, "city": p.City,
-		"year_of_study": year, "updated_at": p.UpdatedAt,
+		"year_of_study": year, "avatar_url": p.AvatarUrl, "updated_at": p.UpdatedAt,
 	}
 }
 

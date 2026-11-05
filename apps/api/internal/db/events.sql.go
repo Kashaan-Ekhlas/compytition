@@ -84,17 +84,17 @@ INSERT INTO events (
     status, eligibility, rules, contact_email, location, min_team_size,
     max_team_size, registration_opens_at, registration_closes_at, starts_at,
     ends_at, submission_deadline, criteria, is_remote, country, state, city,
-    merge_registration_submission
+    merge_registration_submission, banner_url
 ) VALUES (
     $1, $2, $3, $4, $5, $6, 'draft', $7, $8, $9, $10, $11, $12, $13, $14,
-    $15, $16, $17, $18, $19, $20, $21, $22, $23
+    $15, $16, $17, $18, $19, $20, $21, $22, $23, $24
 )
 RETURNING id, slug, organizer_id, title, description, category,
     participation_format, status, eligibility, rules, contact_email, location,
     min_team_size, max_team_size, registration_opens_at, registration_closes_at,
     starts_at, ends_at, submission_deadline, criteria, judging_config,
     judging_status, judging_locked_at, results_published_at, created_at, updated_at,
-    is_remote, country, state, city, merge_registration_submission
+    is_remote, country, state, city, merge_registration_submission, banner_url
 `
 
 type CreateEventParams struct {
@@ -121,6 +121,7 @@ type CreateEventParams struct {
 	State                       string     `json:"state"`
 	City                        string     `json:"city"`
 	MergeRegistrationSubmission bool       `json:"merge_registration_submission"`
+	BannerUrl                   string     `json:"banner_url"`
 }
 
 type CreateEventRow struct {
@@ -155,6 +156,7 @@ type CreateEventRow struct {
 	State                       string     `json:"state"`
 	City                        string     `json:"city"`
 	MergeRegistrationSubmission bool       `json:"merge_registration_submission"`
+	BannerUrl                   string     `json:"banner_url"`
 }
 
 func (q *Queries) CreateEvent(ctx context.Context, arg CreateEventParams) (CreateEventRow, error) {
@@ -182,6 +184,7 @@ func (q *Queries) CreateEvent(ctx context.Context, arg CreateEventParams) (Creat
 		arg.State,
 		arg.City,
 		arg.MergeRegistrationSubmission,
+		arg.BannerUrl,
 	)
 	var i CreateEventRow
 	err := row.Scan(
@@ -216,6 +219,7 @@ func (q *Queries) CreateEvent(ctx context.Context, arg CreateEventParams) (Creat
 		&i.State,
 		&i.City,
 		&i.MergeRegistrationSubmission,
+		&i.BannerUrl,
 	)
 	return i, err
 }
@@ -336,7 +340,7 @@ SELECT id, slug, organizer_id, title, description, category,
     min_team_size, max_team_size, registration_opens_at, registration_closes_at,
     starts_at, ends_at, submission_deadline, criteria, judging_config,
     judging_status, judging_locked_at, results_published_at, created_at, updated_at,
-    is_remote, country, state, city, merge_registration_submission
+    is_remote, country, state, city, merge_registration_submission, banner_url
 FROM events WHERE id = $1
 `
 
@@ -372,6 +376,7 @@ type GetEventByIDRow struct {
 	State                       string     `json:"state"`
 	City                        string     `json:"city"`
 	MergeRegistrationSubmission bool       `json:"merge_registration_submission"`
+	BannerUrl                   string     `json:"banner_url"`
 }
 
 func (q *Queries) GetEventByID(ctx context.Context, id uuid.UUID) (GetEventByIDRow, error) {
@@ -409,6 +414,7 @@ func (q *Queries) GetEventByID(ctx context.Context, id uuid.UUID) (GetEventByIDR
 		&i.State,
 		&i.City,
 		&i.MergeRegistrationSubmission,
+		&i.BannerUrl,
 	)
 	return i, err
 }
@@ -419,7 +425,7 @@ SELECT id, slug, organizer_id, title, description, category,
     min_team_size, max_team_size, registration_opens_at, registration_closes_at,
     starts_at, ends_at, submission_deadline, criteria, judging_config,
     judging_status, judging_locked_at, results_published_at, created_at, updated_at,
-    is_remote, country, state, city, merge_registration_submission
+    is_remote, country, state, city, merge_registration_submission, banner_url
 FROM events WHERE slug = $1
 `
 
@@ -455,6 +461,7 @@ type GetEventBySlugRow struct {
 	State                       string     `json:"state"`
 	City                        string     `json:"city"`
 	MergeRegistrationSubmission bool       `json:"merge_registration_submission"`
+	BannerUrl                   string     `json:"banner_url"`
 }
 
 func (q *Queries) GetEventBySlug(ctx context.Context, slug string) (GetEventBySlugRow, error) {
@@ -492,6 +499,7 @@ func (q *Queries) GetEventBySlug(ctx context.Context, slug string) (GetEventBySl
 		&i.State,
 		&i.City,
 		&i.MergeRegistrationSubmission,
+		&i.BannerUrl,
 	)
 	return i, err
 }
@@ -657,7 +665,8 @@ SELECT e.id, e.slug, e.organizer_id, e.title, e.description, e.category,
     e.registration_closes_at, e.starts_at, e.ends_at, e.submission_deadline,
     e.criteria, e.judging_config, e.judging_status, e.judging_locked_at,
     e.results_published_at, e.created_at, e.updated_at,
-    e.is_remote, e.country, e.state, e.city, e.merge_registration_submission
+    e.is_remote, e.country, e.state, e.city, e.merge_registration_submission,
+    e.banner_url
 FROM events e
 WHERE e.organizer_id = $1
    OR EXISTS (
@@ -700,6 +709,7 @@ type ListEventsByOrganizerRow struct {
 	State                       string     `json:"state"`
 	City                        string     `json:"city"`
 	MergeRegistrationSubmission bool       `json:"merge_registration_submission"`
+	BannerUrl                   string     `json:"banner_url"`
 }
 
 // Hosting includes events the user owns and events they co-organize. Without
@@ -746,6 +756,7 @@ func (q *Queries) ListEventsByOrganizer(ctx context.Context, organizerID uuid.UU
 			&i.State,
 			&i.City,
 			&i.MergeRegistrationSubmission,
+			&i.BannerUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -804,7 +815,8 @@ SELECT e.id, e.slug, e.organizer_id, e.title, e.description, e.category,
     e.registration_closes_at, e.starts_at, e.ends_at, e.submission_deadline,
     e.criteria, e.judging_config, e.judging_status, e.judging_locked_at,
     e.results_published_at, e.created_at, e.updated_at,
-    e.is_remote, e.country, e.state, e.city, e.merge_registration_submission
+    e.is_remote, e.country, e.state, e.city, e.merge_registration_submission,
+    e.banner_url
 FROM event_staff s
 JOIN events e ON e.id = s.event_id
 WHERE s.user_id = $1 AND s.role = 'judge' AND s.status = 'accepted'
@@ -843,6 +855,7 @@ type ListJudgeEventsRow struct {
 	State                       string     `json:"state"`
 	City                        string     `json:"city"`
 	MergeRegistrationSubmission bool       `json:"merge_registration_submission"`
+	BannerUrl                   string     `json:"banner_url"`
 }
 
 func (q *Queries) ListJudgeEvents(ctx context.Context, userID *uuid.UUID) ([]ListJudgeEventsRow, error) {
@@ -886,6 +899,7 @@ func (q *Queries) ListJudgeEvents(ctx context.Context, userID *uuid.UUID) ([]Lis
 			&i.State,
 			&i.City,
 			&i.MergeRegistrationSubmission,
+			&i.BannerUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -905,6 +919,7 @@ SELECT e.id, e.slug, e.organizer_id, e.title, e.description, e.category,
     e.criteria, e.judging_config, e.judging_status, e.judging_locked_at,
     e.results_published_at, e.created_at, e.updated_at,
     e.is_remote, e.country, e.state, e.city, e.merge_registration_submission,
+    e.banner_url,
     count(*) OVER() AS total_count
 FROM events e
 WHERE e.status IN ('published', 'closed', 'results_published')
@@ -977,6 +992,7 @@ type ListPublishedEventsRow struct {
 	State                       string     `json:"state"`
 	City                        string     `json:"city"`
 	MergeRegistrationSubmission bool       `json:"merge_registration_submission"`
+	BannerUrl                   string     `json:"banner_url"`
 	TotalCount                  int64      `json:"total_count"`
 }
 
@@ -1032,6 +1048,7 @@ func (q *Queries) ListPublishedEvents(ctx context.Context, arg ListPublishedEven
 			&i.State,
 			&i.City,
 			&i.MergeRegistrationSubmission,
+			&i.BannerUrl,
 			&i.TotalCount,
 		); err != nil {
 			return nil, err
@@ -1050,7 +1067,7 @@ SELECT id, slug, organizer_id, title, description, category,
     min_team_size, max_team_size, registration_opens_at, registration_closes_at,
     starts_at, ends_at, submission_deadline, criteria, judging_config,
     judging_status, judging_locked_at, results_published_at, created_at, updated_at,
-    is_remote, country, state, city, merge_registration_submission
+    is_remote, country, state, city, merge_registration_submission, banner_url
 FROM events WHERE id = $1 FOR UPDATE
 `
 
@@ -1086,6 +1103,7 @@ type LockEventForUpdateRow struct {
 	State                       string     `json:"state"`
 	City                        string     `json:"city"`
 	MergeRegistrationSubmission bool       `json:"merge_registration_submission"`
+	BannerUrl                   string     `json:"banner_url"`
 }
 
 func (q *Queries) LockEventForUpdate(ctx context.Context, id uuid.UUID) (LockEventForUpdateRow, error) {
@@ -1123,6 +1141,7 @@ func (q *Queries) LockEventForUpdate(ctx context.Context, id uuid.UUID) (LockEve
 		&i.State,
 		&i.City,
 		&i.MergeRegistrationSubmission,
+		&i.BannerUrl,
 	)
 	return i, err
 }
@@ -1143,14 +1162,15 @@ UPDATE events SET
     min_team_size = $10, max_team_size = $11, registration_opens_at = $12,
     registration_closes_at = $13, starts_at = $14, ends_at = $15,
     submission_deadline = $16, criteria = $17, is_remote = $18, country = $19,
-    state = $20, city = $21, merge_registration_submission = $22, updated_at = now()
+    state = $20, city = $21, merge_registration_submission = $22,
+    banner_url = $23, updated_at = now()
 WHERE id = $1
 RETURNING id, slug, organizer_id, title, description, category,
     participation_format, status, eligibility, rules, contact_email, location,
     min_team_size, max_team_size, registration_opens_at, registration_closes_at,
     starts_at, ends_at, submission_deadline, criteria, judging_config,
     judging_status, judging_locked_at, results_published_at, created_at, updated_at,
-    is_remote, country, state, city, merge_registration_submission
+    is_remote, country, state, city, merge_registration_submission, banner_url
 `
 
 type UpdateEventParams struct {
@@ -1176,6 +1196,7 @@ type UpdateEventParams struct {
 	State                       string     `json:"state"`
 	City                        string     `json:"city"`
 	MergeRegistrationSubmission bool       `json:"merge_registration_submission"`
+	BannerUrl                   string     `json:"banner_url"`
 }
 
 type UpdateEventRow struct {
@@ -1210,6 +1231,7 @@ type UpdateEventRow struct {
 	State                       string     `json:"state"`
 	City                        string     `json:"city"`
 	MergeRegistrationSubmission bool       `json:"merge_registration_submission"`
+	BannerUrl                   string     `json:"banner_url"`
 }
 
 func (q *Queries) UpdateEvent(ctx context.Context, arg UpdateEventParams) (UpdateEventRow, error) {
@@ -1236,6 +1258,7 @@ func (q *Queries) UpdateEvent(ctx context.Context, arg UpdateEventParams) (Updat
 		arg.State,
 		arg.City,
 		arg.MergeRegistrationSubmission,
+		arg.BannerUrl,
 	)
 	var i UpdateEventRow
 	err := row.Scan(
@@ -1270,6 +1293,7 @@ func (q *Queries) UpdateEvent(ctx context.Context, arg UpdateEventParams) (Updat
 		&i.State,
 		&i.City,
 		&i.MergeRegistrationSubmission,
+		&i.BannerUrl,
 	)
 	return i, err
 }

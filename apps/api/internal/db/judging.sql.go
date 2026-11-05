@@ -698,11 +698,15 @@ SELECT p.id AS pair_id, p.event_id, p.submission_a, p.submission_b,
        p.left_submission, p.position,
        a.title AS a_title, a.description AS a_description,
        a.repo_url AS a_repo_url, a.demo_url AS a_demo_url,
-       a.file_url AS a_file_url, a.team_id AS a_team_id,
+       a.file_url AS a_file_url, a.file_name AS a_file_name,
+       a.file_mime AS a_file_mime, a.file_preview_url AS a_file_preview_url,
+       a.team_id AS a_team_id,
        ta.name AS a_team_name, ua.username AS a_creator,
        b.title AS b_title, b.description AS b_description,
        b.repo_url AS b_repo_url, b.demo_url AS b_demo_url,
-       b.file_url AS b_file_url, b.team_id AS b_team_id,
+       b.file_url AS b_file_url, b.file_name AS b_file_name,
+       b.file_mime AS b_file_mime, b.file_preview_url AS b_file_preview_url,
+       b.team_id AS b_team_id,
        tb.name AS b_team_name, ub.username AS b_creator
 FROM judging_pairs p
 JOIN submissions a ON a.id = p.submission_a
@@ -724,28 +728,34 @@ type ListPendingPairsForJudgeParams struct {
 }
 
 type ListPendingPairsForJudgeRow struct {
-	PairID         uuid.UUID  `json:"pair_id"`
-	EventID        uuid.UUID  `json:"event_id"`
-	SubmissionA    uuid.UUID  `json:"submission_a"`
-	SubmissionB    uuid.UUID  `json:"submission_b"`
-	LeftSubmission uuid.UUID  `json:"left_submission"`
-	Position       int16      `json:"position"`
-	ATitle         string     `json:"a_title"`
-	ADescription   string     `json:"a_description"`
-	ARepoUrl       string     `json:"a_repo_url"`
-	ADemoUrl       string     `json:"a_demo_url"`
-	AFileUrl       string     `json:"a_file_url"`
-	ATeamID        *uuid.UUID `json:"a_team_id"`
-	ATeamName      *string    `json:"a_team_name"`
-	ACreator       string     `json:"a_creator"`
-	BTitle         string     `json:"b_title"`
-	BDescription   string     `json:"b_description"`
-	BRepoUrl       string     `json:"b_repo_url"`
-	BDemoUrl       string     `json:"b_demo_url"`
-	BFileUrl       string     `json:"b_file_url"`
-	BTeamID        *uuid.UUID `json:"b_team_id"`
-	BTeamName      *string    `json:"b_team_name"`
-	BCreator       string     `json:"b_creator"`
+	PairID          uuid.UUID  `json:"pair_id"`
+	EventID         uuid.UUID  `json:"event_id"`
+	SubmissionA     uuid.UUID  `json:"submission_a"`
+	SubmissionB     uuid.UUID  `json:"submission_b"`
+	LeftSubmission  uuid.UUID  `json:"left_submission"`
+	Position        int16      `json:"position"`
+	ATitle          string     `json:"a_title"`
+	ADescription    string     `json:"a_description"`
+	ARepoUrl        string     `json:"a_repo_url"`
+	ADemoUrl        string     `json:"a_demo_url"`
+	AFileUrl        string     `json:"a_file_url"`
+	AFileName       string     `json:"a_file_name"`
+	AFileMime       string     `json:"a_file_mime"`
+	AFilePreviewUrl string     `json:"a_file_preview_url"`
+	ATeamID         *uuid.UUID `json:"a_team_id"`
+	ATeamName       *string    `json:"a_team_name"`
+	ACreator        string     `json:"a_creator"`
+	BTitle          string     `json:"b_title"`
+	BDescription    string     `json:"b_description"`
+	BRepoUrl        string     `json:"b_repo_url"`
+	BDemoUrl        string     `json:"b_demo_url"`
+	BFileUrl        string     `json:"b_file_url"`
+	BFileName       string     `json:"b_file_name"`
+	BFileMime       string     `json:"b_file_mime"`
+	BFilePreviewUrl string     `json:"b_file_preview_url"`
+	BTeamID         *uuid.UUID `json:"b_team_id"`
+	BTeamName       *string    `json:"b_team_name"`
+	BCreator        string     `json:"b_creator"`
 }
 
 func (q *Queries) ListPendingPairsForJudge(ctx context.Context, arg ListPendingPairsForJudgeParams) ([]ListPendingPairsForJudgeRow, error) {
@@ -774,6 +784,9 @@ func (q *Queries) ListPendingPairsForJudge(ctx context.Context, arg ListPendingP
 			&i.ARepoUrl,
 			&i.ADemoUrl,
 			&i.AFileUrl,
+			&i.AFileName,
+			&i.AFileMime,
+			&i.AFilePreviewUrl,
 			&i.ATeamID,
 			&i.ATeamName,
 			&i.ACreator,
@@ -782,6 +795,9 @@ func (q *Queries) ListPendingPairsForJudge(ctx context.Context, arg ListPendingP
 			&i.BRepoUrl,
 			&i.BDemoUrl,
 			&i.BFileUrl,
+			&i.BFileName,
+			&i.BFileMime,
+			&i.BFilePreviewUrl,
 			&i.BTeamID,
 			&i.BTeamName,
 			&i.BCreator,

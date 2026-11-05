@@ -75,6 +75,7 @@ type Event struct {
 	State                       string      `json:"state"`
 	City                        string      `json:"city"`
 	MergeRegistrationSubmission bool        `json:"merge_registration_submission"`
+	BannerUrl                   string      `json:"banner_url"`
 }
 
 type EventFormField struct {
@@ -191,6 +192,7 @@ type Profile struct {
 	Country     string    `json:"country"`
 	State       string    `json:"state"`
 	City        string    `json:"city"`
+	AvatarUrl   string    `json:"avatar_url"`
 }
 
 type Registration struct {
@@ -228,6 +230,9 @@ type Submission struct {
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
 	Answers        []byte     `json:"answers"`
+	FileName       string     `json:"file_name"`
+	FileMime       string     `json:"file_mime"`
+	FilePreviewUrl string     `json:"file_preview_url"`
 }
 
 type Team struct {
@@ -266,6 +271,19 @@ type TeamMember struct {
 	UserID   uuid.UUID `json:"user_id"`
 	JoinedAt time.Time `json:"joined_at"`
 	EventID  uuid.UUID `json:"event_id"`
+}
+
+type Upload struct {
+	ID           uuid.UUID  `json:"id"`
+	OwnerID      uuid.UUID  `json:"owner_id"`
+	Kind         string     `json:"kind"`
+	EventID      *uuid.UUID `json:"event_id"`
+	OriginalName string     `json:"original_name"`
+	MimeType     string     `json:"mime_type"`
+	SizeBytes    int64      `json:"size_bytes"`
+	StorageKey   string     `json:"storage_key"`
+	PreviewKey   string     `json:"preview_key"`
+	CreatedAt    time.Time  `json:"created_at"`
 }
 
 type User struct {

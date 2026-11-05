@@ -259,7 +259,7 @@ func (q *Queries) GetLoginAttempt(ctx context.Context, key string) (LoginAttempt
 }
 
 const getProfile = `-- name: GetProfile :one
-SELECT user_id, full_name, college, course, year_of_study, updated_at, country, state, city FROM profiles WHERE user_id = $1
+SELECT user_id, full_name, college, course, year_of_study, updated_at, country, state, city, avatar_url FROM profiles WHERE user_id = $1
 `
 
 func (q *Queries) GetProfile(ctx context.Context, userID uuid.UUID) (Profile, error) {
@@ -275,6 +275,7 @@ func (q *Queries) GetProfile(ctx context.Context, userID uuid.UUID) (Profile, er
 		&i.Country,
 		&i.State,
 		&i.City,
+		&i.AvatarUrl,
 	)
 	return i, err
 }
@@ -498,7 +499,7 @@ SET full_name = EXCLUDED.full_name,
     state = EXCLUDED.state,
     city = EXCLUDED.city,
     updated_at = now()
-RETURNING user_id, full_name, college, course, year_of_study, updated_at, country, state, city
+RETURNING user_id, full_name, college, course, year_of_study, updated_at, country, state, city, avatar_url
 `
 
 type UpsertProfileParams struct {
@@ -534,6 +535,7 @@ func (q *Queries) UpsertProfile(ctx context.Context, arg UpsertProfileParams) (P
 		&i.Country,
 		&i.State,
 		&i.City,
+		&i.AvatarUrl,
 	)
 	return i, err
 }

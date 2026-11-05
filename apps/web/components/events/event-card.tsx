@@ -108,6 +108,14 @@ export function EventCard({ event }: { event: EventView }) {
         </div>
       </div>
 
+      {event.banner_url ? (
+        <div className="border-b-2 border-ink">
+          {/* Banners are served from our own origin; next/image would need a loader. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={event.banner_url} alt="" className="h-32 w-full object-cover" />
+        </div>
+      ) : null}
+
       <div className="flex flex-1 flex-col p-5">
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone={statusTone(event.status)}>{statusLabel(event.status)}</Badge>

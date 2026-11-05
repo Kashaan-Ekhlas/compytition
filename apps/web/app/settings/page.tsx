@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { api, errorMessage, fieldErrors } from "@/lib/api";
+import { api, errorMessage, fieldErrors, uploadFile } from "@/lib/api";
 import { useAuth, useRequireAuth } from "@/components/auth-provider";
-import type { Bookmark, Profile } from "@/lib/types";
+import type { Bookmark, Profile, UploadedFile } from "@/lib/types";
 import { Alert, LoadingBlock } from "@/components/ui/feedback";
 import { Badge, statusTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Avatar } from "@/components/ui/avatar";
 import { WindowCard } from "@/components/ui/card";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -169,6 +170,33 @@ export default function SettingsPage() {
     });
   }
 
+  async function changeAvatar(file: File | undefined) {
+    if (!file) return;
+    begin("avatar");
+    try {
+      await uploadFile<{ upload: UploadedFile }>("/uploads", file, { kind: "avatar" });
+      await refresh();
+      finish("avatar", "Profile picture updated.");
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function removeAvatar() {
+    begin("avatar");
+    try {
+      await api("/profile/avatar", { method: "DELETE" });
+      await refresh();
+      finish("avatar", "Profile picture removed.");
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   if (authLoading || loading) {
     return (
       <div className="mx-auto max-w-reading px-4 py-12">
@@ -204,6 +232,42 @@ export default function SettingsPage() {
       <div className="mt-6 space-y-6">
         <WindowCard title="PROFILE">
           <form className="space-y-4 p-5" onSubmit={saveProfile} noValidate>
+            <div className="flex flex-wrap items-center gap-4 border-b-2 border-ink/15 pb-4">
+              <Avatar
+                src={profile?.avatar_url}
+                name={profile?.full_name || user.username}
+                size="lg"
+              />
+              <div className="min-w-48 flex-1 space-y-2">
+                <p className="font-mono text-sm font-semibold uppercase tracking-wide">Profile picture</p>
+                <p className="text-sm text-muted">
+                  Optional. Shown next to your entries, teams and judging activity.
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="inline-flex min-h-10 cursor-pointer items-center border-2 border-ink bg-surface px-3 font-pixel text-sm shadow-hard-sm hover:bg-accent/20">
+                    {busy === "avatar" ? "Uploading…" : profile?.avatar_url ? "Change picture" : "Upload picture"}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/gif,image/webp"
+                      className="sr-only"
+                      disabled={busy !== null}
+                      onChange={(event) => void changeAvatar(event.target.files?.[0])}
+                    />
+                  </label>
+                  {profile?.avatar_url ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={busy !== null}
+                      onClick={() => void removeAvatar()}
+                    >
+                      Remove
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            </div>
             <Field label="Full name" htmlFor="full_name" error={fields.full_name}>
               <Input
                 id="full_name"

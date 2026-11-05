@@ -27,6 +27,12 @@ export default function JudgeEventPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [lastPairId, setLastPairId] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{
+    title: string;
+    name: string;
+    url: string;
+    download: string;
+  } | null>(null);
 
   const fetchNext = useCallback(async () => {
     const data = await api<JudgingNext>(`/judge/events/${eventId}/next`);
@@ -143,6 +149,15 @@ export default function JudgeEventPage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   });
 
+  useEffect(() => {
+    if (!preview) return;
+    function onKeyDown(keyEvent: KeyboardEvent) {
+      if (keyEvent.key === "Escape") setPreview(null);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [preview]);
+
   if (authLoading || loading) {
     return (
       <div className="mx-auto max-w-content px-4 py-12 sm:px-6">
@@ -169,6 +184,44 @@ export default function JudgeEventPage() {
 
   return (
     <div className="mx-auto max-w-content px-4 py-6 sm:px-6 sm:py-8">
+      {preview ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/70 p-3 sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${preview.title} attachment preview`}
+          onClick={() => setPreview(null)}
+        >
+          <div
+            className="flex h-full max-h-[92vh] w-full max-w-5xl flex-col border-2 border-ink bg-surface shadow-hard"
+            onClick={(clickEvent) => clickEvent.stopPropagation()}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b-2 border-ink bg-accent-3 px-4 py-2">
+              <div className="min-w-0">
+                <p className="truncate font-pixel text-sm">{preview.title}</p>
+                <p className="truncate font-mono text-xs text-muted">{preview.name}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={preview.download}
+                  download
+                  className="chunky-link font-mono text-sm"
+                >
+                  Download
+                </a>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setPreview(null)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+            <iframe
+              src={preview.url}
+              title={`${preview.title} attachment`}
+              className="min-h-0 flex-1 bg-white"
+            />
+          </div>
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <Link href="/judge" className="chunky-link font-mono text-sm">
@@ -221,6 +274,7 @@ export default function JudgeEventPage() {
               submission={left}
               fields={formFields}
               onPick={() => void decide(leftWinner)}
+              onPreview={setPreview}
               disabled={busy}
             />
             <SubmissionPanel
@@ -229,6 +283,7 @@ export default function JudgeEventPage() {
               submission={right}
               fields={formFields}
               onPick={() => void decide(rightWinner)}
+              onPreview={setPreview}
               disabled={busy}
             />
           </div>
@@ -332,6 +387,7 @@ function SubmissionPanel({
   submission,
   fields,
   onPick,
+  onPreview,
   disabled,
 }: {
   label: string;
@@ -339,8 +395,11 @@ function SubmissionPanel({
   submission: JudgingSubmission;
   fields: FormField[];
   onPick: () => void;
+  onPreview: (preview: { title: string; name: string; url: string; download: string }) => void;
   disabled: boolean;
 }) {
+  const attachmentName = submission.file_name || "Attached file";
+  const previewURL = submission.file_preview_url;
   return (
     <article className="flex flex-col border-2 border-ink bg-surface shadow-hard">
       <div className="flex items-center justify-between gap-2 border-b-2 border-ink bg-accent-3 px-4 py-2">
@@ -380,14 +439,34 @@ function SubmissionPanel({
             </a>
           ) : null}
           {submission.file_url ? (
-            <a
-              href={submission.file_url}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="chunky-link font-mono text-sm"
-            >
-              File ↗
-            </a>
+            previewURL ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() =>
+                  onPreview({
+                    title: submission.title,
+                    name: attachmentName,
+                    url: previewURL,
+                    download: submission.file_url.includes("/api/v1/uploads/")
+                      ? `${submission.file_url}?download=1`
+                      : submission.file_url,
+                  })
+                }
+              >
+                Preview {attachmentName}
+              </Button>
+            ) : (
+              <a
+                href={submission.file_url}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="chunky-link font-mono text-sm"
+              >
+                Download {attachmentName} ↗
+              </a>
+            )
           ) : null}
         </div>
         <SubmissionAnswers

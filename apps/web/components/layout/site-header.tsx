@@ -6,7 +6,8 @@ import { useState } from "react";
 import { useAuth } from "@/components/auth-provider";
 import { NotificationsMenu } from "@/components/layout/notifications-menu";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { cn, initials } from "@/lib/utils";
+import { Avatar } from "@/components/ui/avatar";
+import { cn } from "@/lib/utils";
 
 const nav = [
   { href: "/events", label: "Events", authOnly: false },
@@ -63,9 +64,11 @@ export function SiteHeader() {
                 className="hidden items-center gap-2 border-2 border-ink bg-surface px-2 py-1 shadow-hard-sm sm:flex"
                 title={user.email}
               >
-                <span className="flex h-8 w-8 items-center justify-center border-2 border-ink bg-accent-3 font-pixel text-xs">
-                  {initials(profile?.full_name || user.username)}
-                </span>
+                <Avatar
+                  src={profile?.avatar_url}
+                  name={profile?.full_name || user.username}
+                  size="sm"
+                />
                 <span className="max-w-28 truncate font-mono text-sm">{user.username}</span>
               </Link>
               <Button variant="ghost" size="sm" className="hidden lg:inline-flex" onClick={() => void logout()}>

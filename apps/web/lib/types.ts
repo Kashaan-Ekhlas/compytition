@@ -16,6 +16,7 @@ export interface Profile {
   state: string;
   city: string;
   year_of_study: number | null;
+  avatar_url: string;
   updated_at?: string;
 }
 
@@ -65,6 +66,7 @@ export interface EventView {
   ends_at: string | null;
   submission_deadline: string | null;
   criteria: Criterion[];
+  banner_url: string;
   judging_status: "setup" | "live" | "locked" | "published";
   judging_config: JudgingConfig;
   results_published_at: string | null;
@@ -111,6 +113,15 @@ export interface Registration {
   updated_at: string;
 }
 
+export interface UploadedFile {
+  id: string;
+  url: string;
+  preview_url: string;
+  name: string;
+  mime: string;
+  size: number;
+}
+
 export interface Submission {
   id: string;
   event_id: string;
@@ -128,6 +139,9 @@ export interface Submission {
   repo_url: string;
   demo_url: string;
   file_url: string;
+  file_name: string;
+  file_mime: string;
+  file_preview_url: string;
   answers: Record<string, unknown>;
   status: "draft" | "submitted";
   created_at: string;
@@ -236,6 +250,9 @@ export interface JudgingSubmission {
   repo_url: string;
   demo_url: string;
   file_url: string;
+  file_name: string;
+  file_mime: string;
+  file_preview_url: string;
   answers: Record<string, unknown>;
   team_id: string | null;
   team_name?: string;

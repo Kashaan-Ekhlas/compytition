@@ -39,7 +39,26 @@ export async function api<T>(path: string, options: Options = {}): Promise<T> {
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
+  return handleResponse<T>(response);
+}
 
+export async function uploadFile<T>(
+  path: string,
+  file: File,
+  query?: Options["query"],
+): Promise<T> {
+  const body = new FormData();
+  body.append("file", file);
+  const response = await fetch(buildUrl(path, query), {
+    method: "POST",
+    credentials: "include",
+    headers: { Accept: "application/json" },
+    body,
+  });
+  return handleResponse<T>(response);
+}
+
+async function handleResponse<T>(response: Response): Promise<T> {
   if (response.status === 204) {
     return undefined as T;
   }

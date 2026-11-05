@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { api, errorMessage, fieldErrors } from "@/lib/api";
-import type { Criterion, EventView } from "@/lib/types";
+import { api, errorMessage, fieldErrors, uploadFile } from "@/lib/api";
+import type { Criterion, EventView, UploadedFile } from "@/lib/types";
 import { Alert } from "@/components/ui/feedback";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
@@ -29,6 +29,8 @@ export function EventForm({
   const { user } = useAuth();
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
+  const [bannerUrl, setBannerUrl] = useState(initial?.banner_url ?? "");
+  const [bannerBusy, setBannerBusy] = useState(false);
   const [category, setCategory] = useState(initial?.category ?? "Hackathon");
   const [format, setFormat] = useState<string>(initial?.participation_format ?? "both");
   const [eligibility, setEligibility] = useState(initial?.eligibility ?? "");
@@ -71,6 +73,24 @@ export function EventForm({
     setCriteria((current) => current.filter((_, position) => position !== index));
   }
 
+  async function changeBanner(file: File | undefined) {
+    if (!file) return;
+    setError(null);
+    setFields((current) => ({ ...current, banner_url: "" }));
+    setBannerBusy(true);
+    try {
+      const data = await uploadFile<{ upload: UploadedFile }>("/uploads", file, {
+        kind: "banner",
+      });
+      setBannerUrl(data.upload.url);
+    } catch (err) {
+      setError(errorMessage(err));
+      setFields((current) => ({ ...current, ...fieldErrors(err) }));
+    } finally {
+      setBannerBusy(false);
+    }
+  }
+
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
@@ -81,6 +101,7 @@ export function EventForm({
       const payload = {
         title,
         description,
+        banner_url: bannerUrl,
         category,
         participation_format: format,
         eligibility,
@@ -142,6 +163,46 @@ export function EventForm({
             className="min-h-36"
           />
         </Field>
+        <div className="space-y-2">
+          <p className="font-mono text-sm font-semibold uppercase tracking-wide">Event banner</p>
+          {bannerUrl ? (
+            <div className="relative overflow-hidden border-2 border-ink bg-accent-3">
+              {/* Uploaded banners live on our own origin; next/image would need a loader. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={bannerUrl} alt="Event banner preview" className="h-48 w-full object-cover" />
+            </div>
+          ) : (
+            <div className="flex h-48 items-center justify-center border-2 border-dashed border-ink/40 bg-surface px-4 text-center text-sm text-muted">
+              Optional. A wide image works best, up to 8 MB.
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="inline-flex min-h-10 cursor-pointer items-center border-2 border-ink bg-surface px-3 font-pixel text-sm shadow-hard-sm hover:bg-accent/20">
+              {bannerBusy ? "Uploading…" : bannerUrl ? "Change banner" : "Upload banner"}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                className="sr-only"
+                disabled={bannerBusy}
+                onChange={(event) => {
+                  void changeBanner(event.target.files?.[0]);
+                  event.target.value = "";
+                }}
+              />
+            </label>
+            {bannerUrl ? (
+              <Button type="button" variant="ghost" size="sm" onClick={() => setBannerUrl("")}>
+                Remove banner
+              </Button>
+            ) : null}
+          </div>
+          {fields.banner_url ? (
+            <p className="text-sm font-semibold text-accent-2">{fields.banner_url}</p>
+          ) : null}
+          <p className="text-sm text-muted">
+            Shown at the top of the public event page and on event cards.
+          </p>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Category" htmlFor="category" error={fields.category}>
             <Select id="category" value={category} onChange={(event) => setCategory(event.target.value)}>

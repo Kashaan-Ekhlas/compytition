@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { api, errorMessage, fieldErrors } from "@/lib/api";
+import { api, errorMessage, fieldErrors, uploadFile } from "@/lib/api";
 import { safeNext } from "@/lib/utils";
 import { useAuth, useRequireAuth } from "@/components/auth-provider";
+import type { UploadedFile } from "@/lib/types";
 import { Alert, LoadingBlock, Progress } from "@/components/ui/feedback";
+import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/input";
 
@@ -49,6 +51,8 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(1);
   const [username, setUsername] = useState("");
   const [fullName, setFullName] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [avatarBusy, setAvatarBusy] = useState(false);
   const [college, setCollege] = useState("");
   const [course, setCourse] = useState("");
   const [year, setYear] = useState("");
@@ -67,6 +71,7 @@ export default function OnboardingPage() {
     setSelected(user.intents ?? []);
     if (profile) {
       setFullName(profile.full_name);
+      setAvatarUrl(profile.avatar_url ?? "");
       setCollege(profile.college);
       setCourse(profile.course);
       setCountry(profile.country ?? "");
@@ -141,6 +146,22 @@ export default function OnboardingPage() {
         year_of_study: year ? Number(year) : null,
       },
     });
+  }
+
+  async function changeAvatar(file: File | undefined) {
+    if (!file) return;
+    setError(null);
+    setAvatarBusy(true);
+    try {
+      const data = await uploadFile<{ upload: UploadedFile }>("/uploads", file, {
+        kind: "avatar",
+      });
+      setAvatarUrl(data.upload.url);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setAvatarBusy(false);
+    }
   }
 
   async function next() {
@@ -267,15 +288,41 @@ export default function OnboardingPage() {
           ) : null}
 
           {step === 2 ? (
-            <Field label="Full name" htmlFor="full-name" error={fields.full_name}>
-              <Input
-                id="full-name"
-                value={fullName}
-                onChange={(event) => setFullName(event.target.value)}
-                autoComplete="name"
-                autoFocus
-              />
-            </Field>
+            <>
+              <div className="flex flex-wrap items-center gap-4">
+                <Avatar src={avatarUrl} name={fullName || user?.username || "?"} size="lg" />
+                <div className="min-w-48 flex-1 space-y-2">
+                  <p className="font-mono text-sm font-semibold uppercase tracking-wide">
+                    Profile picture
+                  </p>
+                  <p className="text-sm text-muted">
+                    Optional. You can add or change this later in settings.
+                  </p>
+                  <label className="inline-flex min-h-10 cursor-pointer items-center border-2 border-ink bg-surface px-3 font-pixel text-sm shadow-hard-sm hover:bg-accent/20">
+                    {avatarBusy ? "Uploading…" : avatarUrl ? "Change picture" : "Upload picture"}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/gif,image/webp"
+                      className="sr-only"
+                      disabled={avatarBusy}
+                      onChange={(event) => {
+                        void changeAvatar(event.target.files?.[0]);
+                        event.target.value = "";
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+              <Field label="Full name" htmlFor="full-name" error={fields.full_name}>
+                <Input
+                  id="full-name"
+                  value={fullName}
+                  onChange={(event) => setFullName(event.target.value)}
+                  autoComplete="name"
+                  autoFocus
+                />
+              </Field>
+            </>
           ) : null}
 
           {step === 3 ? (

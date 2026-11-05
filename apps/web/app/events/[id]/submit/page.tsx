@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { api, errorMessage, fieldErrors } from "@/lib/api";
+import { api, errorMessage, fieldErrors, uploadFile } from "@/lib/api";
 import { useAuth, useRequireAuth } from "@/components/auth-provider";
-import type { EventView, FormField, Registration, Submission } from "@/lib/types";
+import type { EventView, FormField, Registration, Submission, UploadedFile } from "@/lib/types";
 import { Alert, LoadingBlock } from "@/components/ui/feedback";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
@@ -30,6 +30,10 @@ export default function SubmitPage() {
   });
   const [formFields, setFormFields] = useState<FormField[]>([]);
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
+  const [fileMeta, setFileMeta] = useState<{ name: string; mime: string; preview: string } | null>(
+    null,
+  );
+  const [fileBusy, setFileBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +75,13 @@ export default function SubmitPage() {
             file_url: s.file_url ?? "",
             status: s.status,
           });
+          if (s.file_url) {
+            setFileMeta({
+              name: s.file_name || "Attached file",
+              mime: s.file_mime,
+              preview: s.file_preview_url,
+            });
+          }
         }
       } catch (err) {
         setError(errorMessage(err));
@@ -80,6 +91,27 @@ export default function SubmitPage() {
     }
     void load();
   }, [params.id, user]);
+
+  async function attachFile(file: File | undefined) {
+    if (!file) return;
+    setError(null);
+    setFields((current) => ({ ...current, file_url: "" }));
+    setFileBusy(true);
+    try {
+      const data = await uploadFile<{ upload: UploadedFile }>("/uploads", file, {
+        kind: "attachment",
+        event_id: params.id,
+      });
+      const upload = data.upload;
+      setForm((current) => ({ ...current, file_url: upload.url }));
+      setFileMeta({ name: upload.name, mime: upload.mime, preview: upload.preview_url });
+    } catch (err) {
+      setError(errorMessage(err));
+      setFields((current) => ({ ...current, ...fieldErrors(err) }));
+    } finally {
+      setFileBusy(false);
+    }
+  }
 
   async function onSubmit(formEvent: React.FormEvent) {
     formEvent.preventDefault();
@@ -201,21 +233,70 @@ export default function SubmitPage() {
               onChange={(e) => setForm({ ...form, demo_url: e.target.value })}
             />
           </Field>
-          <Field label="File or video URL" htmlFor="file" error={fields.file_url} hint="Optional">
-            <Input
-              id="file"
-              type="url"
-              placeholder="https://…"
-              value={form.file_url}
-              onChange={(e) => setForm({ ...form, file_url: e.target.value })}
-            />
-          </Field>
           <Field label="Visibility" htmlFor="status" error={fields.status} hint="Drafts are not judged.">
             <Select id="status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
               <option value="submitted">Submit for judging</option>
               <option value="draft">Keep as draft</option>
             </Select>
           </Field>
+        </div>
+        <div className="space-y-2 border-2 border-ink bg-accent-3/30 p-4">
+          <p className="font-mono text-sm font-semibold uppercase tracking-wide">
+            Presentation or PDF
+          </p>
+          <p className="text-sm text-muted">
+            Optional. Attach a PDF, PPT or PPTX deck. Judges can preview it without leaving the
+            comparison screen. Up to 25 MB.
+          </p>
+          {form.file_url && fileMeta ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-2 border-ink bg-surface px-3 py-2">
+              <div className="min-w-0">
+                <p className="truncate font-semibold">{fileMeta.name || "Attached file"}</p>
+                <p className="font-mono text-sm text-muted">
+                  {fileMeta.preview ? "Preview ready" : "Download only"}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {fileMeta.preview ? (
+                  <a
+                    href={fileMeta.preview}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="chunky-link font-mono text-sm"
+                  >
+                    Preview ↗
+                  </a>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setForm((current) => ({ ...current, file_url: "" }));
+                    setFileMeta(null);
+                  }}
+                >
+                  Remove
+                </Button>
+              </div>
+            </div>
+          ) : null}
+          <label className="inline-flex min-h-10 cursor-pointer items-center border-2 border-ink bg-surface px-3 font-pixel text-sm shadow-hard-sm hover:bg-accent/20">
+            {fileBusy ? "Uploading…" : form.file_url ? "Replace file" : "Attach file"}
+            <input
+              type="file"
+              accept="application/pdf,.pdf,.ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+              className="sr-only"
+              disabled={fileBusy}
+              onChange={(event) => {
+                void attachFile(event.target.files?.[0]);
+                event.target.value = "";
+              }}
+            />
+          </label>
+          {fields.file_url ? (
+            <p className="text-sm font-semibold text-accent-2">{fields.file_url}</p>
+          ) : null}
         </div>
         {formFields.length > 0 ? (
           <>

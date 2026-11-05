@@ -140,6 +140,18 @@ export default function EventDetailPage() {
         {event.can_manage ? <Badge tone="red">Organizer</Badge> : null}
       </div>
 
+      {event.banner_url ? (
+        <div className="mt-5 overflow-hidden border-2 border-ink shadow-hard">
+          {/* Banners are served from our own origin; next/image would need a loader. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={event.banner_url}
+            alt={`${event.title} banner`}
+            className="max-h-80 w-full object-cover"
+          />
+        </div>
+      ) : null}
+
       <header className="mt-5 grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">
         <div>
           <h1 className="font-pixel text-3xl leading-tight sm:text-4xl lg:text-5xl">{event.title}</h1>

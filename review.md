@@ -302,9 +302,9 @@ These are real but were outside this review's fix scope or need a product decisi
 
 | Priority | Findings | Action |
 |---|---|---|
-| Fix before shipping | 3, 10, 14, 17 | Real user-facing or resource-safety bugs |
-| Harden next | 2, 5, 9, 13, 16 | Security, storage and local-run correctness |
-| Polish and tests | 1, 4, 6, 7, 8, 11, 12, 15, 18 | UX, schema invariants, deduplication and coverage |
+| Fix before shipping | 1, 2, 3 | User-facing action, authorization and resource-safety bugs |
+| Harden next | 4, 5, 6, 7, 8, 9 | Security, storage and local-run correctness |
+| Polish and tests | 10, 11, 12, 13, 14, 15, 16, 17, 18 | UX, schema invariants, deduplication and coverage |
 
 ### Findings and suggested changes
 
@@ -418,9 +418,9 @@ Suggested change: export `uploads.IDFromPath`, `uploads.PathFor` and `uploads.Pr
 
 ### Recommended order
 
-1. Fix findings 3, 14 and 17 together: authorization, conversion concurrency and the teammate case.
-2. Fix findings 4, 5 and 6 together as the security pass.
-3. Apply the small UI guards and input resets (1, 9, 11, 12, 13, 15).
+1. Fix findings 1, 2 and 3 together: the judge shortcut guard, teammate attachment access and conversion concurrency.
+2. Fix findings 4, 5 and 6 together as the security pass, then tackle the WebP and upload-path issues (7, 8) and the upload limiter and quota (9).
+3. Apply the small UI guards and input resets (10, 11, 12, 13, 14, 15).
 4. Add the schema invariant (16), deduplicate URL helpers (18), then add the missing tests (17).
 
 All findings were checked against the current tree. No fixes were applied during this review pass.

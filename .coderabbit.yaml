@@ -1,0 +1,127 @@
+# CodeRabbit configuration for Compytition.
+# The review bar comes from rules.md: be highly nitpicky, prefer a false
+# positive over a missed issue, and judge edge cases, validation, error
+# handling, naming, abstractions and test coverage.
+language: en-US
+reviews:
+  profile: assertive
+  high_level_summary: true
+  high_level_summary_placeholder: "@coderabbitai summary"
+  poem: false
+  review_status: true
+  collapse_walkthrough: true
+  sequence_diagrams: false
+  estimate_code_review_effort: true
+  assess_linked_issues: true
+  related_issues: false
+  related_prs: false
+  suggested_labels: false
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    drafts: false
+    ignore_title_keywords:
+      - WIP
+      - DO NOT MERGE
+  path_filters:
+    - "!**/node_modules/**"
+    - "!**/.next/**"
+    - "!**/dist/**"
+    - "!**/coverage/**"
+    - "!**/*.tsbuildinfo"
+    - "!**/next-env.d.ts"
+    - "!apps/api/uploads/**"
+    - "!uploads/**"
+    - "!**/.env"
+    - "!**/.env.local"
+  path_instructions:
+    - path: "apps/api/**/*.go"
+      instructions: |
+        Review this Go service with a very high bar. Prefer flagging a
+        possible issue over missing one, even when it is minor.
+        Focus on:
+        - missing validation of user input, IDs, enums, pagination and
+          ownership checks
+        - error handling gaps: swallowed errors, wrong HTTP status codes,
+          leaking internal details, missing transaction rollbacks
+        - authorization boundaries between participant, organizer, staff,
+          judge, and admin
+        - edge cases around deadlines, status transitions, empty lists,
+          duplicate rows, and concurrent updates
+        - SQL and query correctness, including tenant/event scoping and
+          rows affected by updates and deletes
+        - naming clarity, weak abstractions, duplicated logic, and control
+          flow that needs a comment to be understood
+        - consistency with existing handler, service, and apperr patterns
+        - test coverage gaps for new branches and failure paths
+        Style rules:
+        - Go services use net/http, pgx, SQLC and apperr. Do not suggest
+          frameworks or new dependencies unless there is no stdlib option.
+        - User-facing errors go through apperr with stable codes.
+    - path: "apps/api/db/**/*.sql"
+      instructions: |
+        Review migrations and queries for production safety.
+        Look for:
+        - destructive or irreversible changes, missing down migrations, and
+          incompatible defaults or nullability
+        - missing indexes for new foreign keys, filters, ordering and unique
+          constraints
+        - query scoping mistakes that could cross event, user or team
+          boundaries
+        - JSONB validation, partial unique indexes and generated columns that
+          can drift from the documented invariants
+        - SQLC query names and comments that do not match the generated Go
+          surface
+        - data backfills that are not idempotent
+    - path: "apps/web/**/*.{ts,tsx}"
+      instructions: |
+        Review this Next.js App Router code with a very high bar. Prefer
+        flagging a possible issue over missing one, even when it is minor.
+        Focus on:
+        - server/client boundary mistakes, hydration mismatches, and direct
+          use of browser APIs in server components
+        - loading, empty, error and unauthenticated states for every fetch
+        - stale closures, unhandled promise rejections, missing cleanup in
+          effects, and race conditions between requests
+        - accessibility: labels, focus management, keyboard paths, dialog
+          semantics, alt text and announcements
+        - form validation parity with the API, disabled states, and double
+          submissions
+        - TypeScript strictness: avoid any, unsafe casts, non-null assertions
+          and unvalidated JSON
+        - consistency with the arcade theme, design tokens, and existing
+          shadcn-style components
+        - naming clarity, component size, duplicated fetch logic, and
+          maintainability
+    - path: "**/*_test.go"
+      instructions: |
+        Review tests for real value. Flag assertions that cannot fail, flaky
+        time or ordering dependencies, missing failure-path cases, and tests
+        that duplicate implementation instead of behaviour. Ask for coverage
+        of new branches, authorization denials, validation errors, and
+        deadline or status edges.
+    - path: "**/*.{test,spec}.{ts,tsx}"
+      instructions: |
+        Review tests for real value. Flag assertions that cannot fail, flaky
+        timers or network conditions, missing failure-path cases, and tests
+        that duplicate implementation instead of behaviour. Ask for coverage
+        of new branches, authorization denials, validation errors, and
+        loading or error states.
+    - path: "**/*.{md,yml,yaml,json,toml}"
+      instructions: |
+        Review configuration and documentation for accuracy and drift.
+        Flag:
+        - commands, paths, ports, env vars or endpoints that do not match the
+          code (web :3100, API :8080, Postgres :5433)
+        - security-sensitive defaults, secrets, broad permissions, or
+          permissive CORS and CSP
+        - Docker and Compose changes that break local runs or drop volumes
+        - stale docs, undocumented behavior changes and broken examples
+        - project writing rules: no em dashes, clear short sentences, and
+          consistent naming
+    - path: "docker-compose.yml"
+      instructions: |
+        Check service wiring, health checks, dependency order, named volumes,
+        env propagation, exposed ports and the upload volume at
+        /data/uploads. Flag anything that would lose uploaded files on a
+        rebuild or break a fresh clone.

@@ -447,7 +447,7 @@ func (s *Service) resolveAttachment(ctx context.Context, userID, eventID uuid.UU
 	case up.PreviewKey != "":
 		preview = "/api/v1/uploads/" + id.String() + "?preview=1"
 	case up.MimeType == "application/pdf":
-		preview = "/api/v1/uploads/" + id.String()
+		preview = "/api/v1/uploads/" + id.String() + "?preview=1"
 	}
 	return attachment{
 		URL: "/api/v1/uploads/" + id.String(), Name: up.OriginalName,

@@ -9,7 +9,7 @@ next-env.d.ts
 apps/api/bin/
 apps/api/tmp/
 apps/api/uploads/
-uploads/
+/uploads/
 *.test
 *.out
 coverage.out

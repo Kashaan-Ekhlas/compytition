@@ -31,8 +31,9 @@ compytition/
       judging/       CrowdBT + assignment + judging handlers
       registrations/ registrations and organizer status
       server/        ServeMux wiring, middleware chain
-      submissions/   submissions and deadlines
+      submissions/   submissions, deadlines and attachment metadata
       teams/         team lifecycle, invites, join requests
+      uploads/       disk-backed avatars, banners and submission attachments
       dashboard/     aggregated user home
   apps/web/          Next.js App Router + TS strict + Tailwind + shadcn-style UI
   design.md          visual source of truth
@@ -83,19 +84,29 @@ Key tables and invariants:
 - `users` - CITEXT unique email + username; username regex `^[a-zA-Z0-9_]{3,30}$`; onboarding step 1-7.
 - `auth_identities` - one row per provider (`password`, `google`); password hash nullable for OAuth-only accounts.
 - `sessions` - `token_hash BYTEA UNIQUE`; expiry index; cascade on user delete.
-- `profiles` - 1:1 with users; name/college/course/year plus optional `country`, `state`, `city`.
-- `events` - slug unique, organizer, lifecycle status, judging status, JSONB `criteria` (array of `{name,description}`), JSONB `judging_config` (`{target_comparisons,judge_budget,anchor_count}`), structured location (`is_remote`, `country`, `state`, `city`) plus display `location`, `merge_registration_submission`, generated `search_vector` + GIN index.
+- `profiles` - 1:1 with users; name/college/course/year plus optional `country`, `state`, `city` and `avatar_url`.
+- `events` - slug unique, organizer, lifecycle status, judging status, JSONB `criteria` (array of `{name,description}`), JSONB `judging_config` (`{target_comparisons,judge_budget,anchor_count}`), structured location (`is_remote`, `country`, `state`, `city`) plus display `location`, `merge_registration_submission`, optional `banner_url`, generated `search_vector` + GIN index.
 - `event_form_fields` - schema-driven fields with `form_kind` (`registration` or `submission`); type CHECK; options JSONB; ordered.
 - `event_staff` - `(event_id,email,role)` unique; `invite_token` unique; accepted rows carry `user_id`.
 - `teams` - `(event_id,name)` unique; owner; optional unique `invite_token` for shareable invite links. `team_members` stores `event_id` with a composite FK back to `teams(event_id,id)` and a unique `(event_id,user_id)` index, so the database itself prevents a user joining two teams in one event; max size is checked under `SELECT ... FOR UPDATE`.
 - `team_invites` / `team_join_requests` - `(team_id,user)` unique; pending to accepted/rejected/cancelled.
 - `registrations` - `(event_id,user_id)` unique; `team_id` links team entry; answers JSONB (merged events include submission fields).
-- `submissions` - one per registration; partial unique `(event_id,team_id) WHERE team_id IS NOT NULL`; custom `answers` JSONB keyed by submission field ID.
+- `submissions` - one per registration; partial unique `(event_id,team_id) WHERE team_id IS NOT NULL`; custom `answers` JSONB keyed by submission field ID; optional attachment metadata (`file_url`, `file_name`, `file_mime`, `file_preview_url`).
+- `uploads` - owner, kind (`avatar`, `banner`, `attachment`), optional event, original name, MIME, byte size, storage key, optional converted preview key. Bytes live on disk, not in Postgres.
 - `judging_pairs` - canonical `submission_a < submission_b`; left/right randomization via `left_submission`; unique `(judge_id,a,b)`; status pending/judged/skipped.
 - `judgments` - append-only; partial unique current per pair; winner must be one of the pair (service invariant); `skipped`/`conflict` flags.
 - `event_results` - `(event_id,rank)` unique; `(event_id,submission_id)` PK; only written when publishing.
 - `audit_log` - append-only JSONB metadata.
 - Supporting: bookmarks, notifications, chat_messages, feedback_reports.
+
+## Uploads and Storage
+
+- Bytes are written to disk under `UPLOAD_DIR` (`./uploads` by default, `/data/uploads` in Compose) in `avatar/`, `banner/` and `attachment/` subdirectories. Postgres stores only metadata and storage keys in `uploads`.
+- The Compose `uploads` named volume keeps files across container rebuilds. The directory is gitignored. Back it up together with the database; the metadata is useless without the bytes and vice versa.
+- Avatars are capped at 4 MB, banners at 8 MB and submission attachments at 25 MB. Image magic bytes and dimensions are checked, as are PDF/PPT/PPTX headers. PPTX files must also contain `ppt/presentation.xml`.
+- Avatars and banners are public when fetched. Attachments require authentication and are limited to the owner, event staff, judges and admins.
+- PDFs preview natively. PPT/PPTX uploads are converted to PDF with LibreOffice (`soffice`) during upload; a failed conversion leaves the original downloadable but without an embedded preview.
+- The API serves files itself, so the web app keeps a same-origin `/api/v1/uploads/...` URL. File responses allow same-origin framing so the judge preview dialog can embed the PDF.
 
 ## Judging System
 
@@ -187,6 +198,7 @@ Demo accounts: `host@compytition.local` (organizer), `ava@`, `milo@`, `rin@compy
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth | empty locally |
 | `GOOGLE_REDIRECT_URL` | OAuth callback | `http://localhost:8080/api/v1/auth/google/callback` |
 | `ADMIN_EMAILS` | comma-separated admin emails | `you@example.com` |
+| `UPLOAD_DIR` | disk root for avatars, banners and attachments | `./uploads` locally, `/data/uploads` in Compose |
 | `LOG_LEVEL` | slog level | `info` |
 | `RATE_LIMIT_PER_MIN` | global per-IP budget | `240` |
 | `API_INTERNAL_URL` | Next rewrite target | `http://api:8080` in Compose |
@@ -210,6 +222,7 @@ Demo accounts: `host@compytition.local` (organizer), `ava@`, `milo@`, `rin@compy
 - The seeded demo event is pre-judged and published, so create a new event to exercise the judge flow end to end.
 - Next bakes `API_INTERNAL_URL` into the standalone web build; changing the internal API address requires rebuilding the web image, not just changing the runtime env.
 - Test coverage is concentrated in assignment, CrowdBT and middleware. Domain services and HTTP handlers have no integration tests yet.
+- Replacing an avatar, banner or attachment leaves the previous disk file and `uploads` row behind; a periodic orphan sweep is still needed.
 
 ## Open Questions
 
@@ -220,6 +233,8 @@ Demo accounts: `host@compytition.local` (organizer), `ava@`, `milo@`, `rin@compy
 ## Changelog
 
 Newest first.
+
+- **2026-11-06** - Optional media uploads: profile pictures in onboarding/settings, organizer event banners, and direct PDF/PPT/PPTX submission attachments. Bytes go to `UPLOAD_DIR` (Compose `uploads` volume), metadata to the `uploads` table. PPT/PPTX decks are converted to PDF with LibreOffice for an embedded judge preview; PDFs preview directly. File responses allow same-origin framing while the global API CSP still denies it. Added upload validation tests and documented storage.
 
 - **2026-10-29** - CI seed repair and 300-entry stress test: the seed now writes `{}` submission answers and uses a finished demo timeline so derived judging can run. A full HTTP-API run created 310 accounts, 5 teams via invite link, 300 submissions, and 1,200 comparisons across 3 judges. CrowdBT scored Spearman 0.68 / Kendall 0.48 against a known order; review now warns when a large event has fewer than 12 comparisons per entry.
 - **2026-10-29** - Final review pass: Google sign-in and sign-up now preserve the `next` destination (including `/onboarding?next=...`) so staff and team invite links still auto-accept for Google accounts. Header nav is nudged onto the wordmark baseline.

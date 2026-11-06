@@ -35,13 +35,21 @@ Status legend: ✅ implemented
 | ✅ | GET | `/profile` | user | `{ user, profile }` |
 | ✅ | PUT | `/profile` | user | `{ full_name, college, course, year_of_study, country, state, city }` |
 
+## Uploads
+
+| Status | Method | Path | Auth | Notes |
+|---|---|---|---|---|
+| ✅ | POST | `/uploads?kind=avatar\|banner\|attachment` | user | multipart `file`, 4 MB image / 8 MB banner / 25 MB attachment; attachments also need `event_id` and a confirmed registration; returns `{ upload: { id, url, preview_url, name, mime, size } }` |
+| ✅ | GET | `/uploads/{id}` | public for avatars/banners; owner/staff/judge/admin for attachments | serves bytes inline; `?preview=1` serves the converted PDF for PPT/PPTX or the original for PDF; `?download=1` forces a download |
+| ✅ | DELETE | `/profile/avatar` | user | clears the profile picture pointer |
+
 ## Events
 
 | Status | Method | Path | Auth | Notes |
 |---|---|---|---|---|
 | ✅ | GET | `/events` | public | `q`, `category`, `format`, `status` (`upcoming`/`open`/`closed`/`ended`), `mode` (`online`/`onsite`), `country`, `state`, `city`, `limit`, `offset`; `{ events, total, categories }` |
 | ✅ | GET | `/events/{id}` | optional | `{ event }`; drafts hidden unless organizer/staff |
-| ✅ | POST | `/events` | user | create draft; event fields + `criteria`; accepts `is_remote`, `country`, `state`, `city`, `merge_registration_submission` |
+| ✅ | POST | `/events` | user | create draft; event fields + `criteria`; accepts `is_remote`, `country`, `state`, `city`, `merge_registration_submission` and an owned banner upload as `banner_url` |
 | ✅ | PATCH | `/events/{id}` | organizer/staff | edit fields; blocked after results |
 | ✅ | POST | `/events/{id}/publish` | organizer/staff | draft → published; requires start + deadlines |
 | ✅ | POST | `/events/{id}/unpublish` | organizer/staff | published → draft; blocked once registrations exist |
@@ -103,8 +111,8 @@ Status legend: ✅ implemented
 | Status | Method | Path | Auth | Notes |
 |---|---|---|---|---|
 | ✅ | GET | `/events/{id}/submissions/me` | participant | my / my team's submission |
-| ✅ | POST | `/events/{id}/submissions` | participant | create before submission deadline; `answers` are validated against submission form fields |
-| ✅ | PATCH | `/submissions/{id}` | owner | update before deadline; blocked after judging locks; same answer validation |
+| ✅ | POST | `/events/{id}/submissions` | participant | create before submission deadline; `answers` are validated against submission form fields; `file_url` may be an owned `attachment` upload or a legacy http(s) link |
+| ✅ | PATCH | `/submissions/{id}` | owner | update before deadline; blocked after judging locks; same answer validation and attachment rules |
 | ✅ | GET | `/events/{id}/submissions` | organizer/staff | all submissions for the event, including custom `answers`; optional `status=draft\|submitted` |
 | ✅ | GET | `/submissions` | user | my submissions, including custom `answers` |
 
@@ -115,7 +123,7 @@ Status legend: ✅ implemented
 | ✅ | GET | `/events/{id}/judging/preview` | organizer/staff | derived config from submission/judge counts; deterministic plan: coverage, connectivity, per-judge load, overlap, warnings; blocked before the submission deadline |
 | ✅ | POST | `/events/{id}/judging/assign` | organizer/staff | persist pairs using the derived config; only while `judging_status=setup` and after the submission deadline |
 | ✅ | POST | `/events/{id}/judging/start` | organizer/staff | requires at least one pair; sets `live` |
-| ✅ | GET | `/judge/events/{id}/next` | judge | next pending pair + progress (`last_pair_id`) + criteria; submissions include custom `answers` |
+| ✅ | GET | `/judge/events/{id}/next` | judge | next pending pair + progress (`last_pair_id`) + criteria; submissions include custom `answers` and attachment metadata (`file_name`, `file_mime`, `file_preview_url`) |
 | ✅ | POST | `/judge/events/{id}/comparisons/{pairId}` | judge | `{ winner: "a"\|"b" }` or `{ skipped: true }` or `{ conflict: true }` |
 | ✅ | POST | `/judge/events/{id}/comparisons/{pairId}/undo` | judge | clears current judgment and returns pair to pending; undoing a conflict restores skipped pairs |
 | ✅ | GET | `/judge/events/{id}/progress` | judge | `{ total, done, last_pair_id }` |
@@ -155,19 +163,19 @@ These are intentionally deferred and have no routes yet: event duplication, CSV 
 | ✅ | `/` | single-theme landing page with hero copy and CTAs |
 | ✅ | `/login` | email/password + Google button when configured; red error toast; honours `?next=` |
 | ✅ | `/register` | account creation with password checklist, eye toggles and gated submit; hands off to onboarding with `?next=` |
-| ✅ | `/onboarding` | seven resumable steps: username, name, college, course, year, country/state/city, intents |
-| ✅ | `/events` | discovery with search, category, format, status, mode and location filters plus "use my location" |
-| ✅ | `/events/[id]` | public detail, criteria, form preview, results, save/share actions |
+| ✅ | `/onboarding` | seven resumable steps: username, optional profile picture and name, college, course, year, country/state/city, intents |
+| ✅ | `/events` | discovery with search, category, format, status, mode and location filters plus "use my location"; banners appear on cards |
+| ✅ | `/events/[id]` | public detail with banner, criteria, form preview, results, save/share actions |
 | ✅ | `/events/[id]/register` | autofilled registration form with team choice; includes submission fields when forms are merged |
 | ✅ | `/events/[id]/team` | team create/join/invite/manage, copyable invite link + websocket chat |
-| ✅ | `/events/[id]/submit` | submission editor with deadline state; prefills merged answers and shows custom fields |
+| ✅ | `/events/[id]/submit` | submission editor with deadline state, merged answers, custom fields and PDF/PPT attachment upload |
 | ✅ | `/dashboard` | registrations, teams, invites, drafts, hosting and judging queues |
-| ✅ | `/settings` | profile, username, password, bookmarks, feedback, logout |
+| ✅ | `/settings` | profile picture upload/remove, profile, username, password, bookmarks, feedback, logout |
 | ✅ | `/host` | organizer home grouped by draft / running / finished |
-| ✅ | `/host/events/new` | event creation |
+| ✅ | `/host/events/new` | event creation with optional banner upload |
 | ✅ | `/host/events/[id]` | manage tabs: overview, form, participants, submissions, judges, judging |
 | ✅ | `/judge` | judge queue with progress bars |
-| ✅ | `/judge/events/[id]` | pairwise comparison screen with custom answers, keyboard 1/2, skip, conflict, undo |
+| ✅ | `/judge/events/[id]` | pairwise comparison screen with custom answers, attachment preview dialog, keyboard 1/2, skip, conflict, undo |
 | ✅ | `/invites/staff/[token]` | staff invite acceptance; existing accounts accept now, new accounts return after signup |
 | ✅ | `/invites/team/[token]` | public team invite preview; acceptance requires sign-in and auto-joins existing accounts |
 

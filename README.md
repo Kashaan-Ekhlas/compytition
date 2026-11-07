@@ -87,11 +87,12 @@ apps/api/
   db/migrations/      embedded SQL migrations
   db/queries/         SQLC query sources
   internal/
-    auth/             argon2id, sessions, onboarding, Google OIDC
+    auth/             bcrypt, sessions, onboarding, Google OIDC
     events/           CRUD, lifecycle, forms, staff invites
     teams/            teams, invites, join requests
     registrations/    registration forms and organizer status
     submissions/      submission editing and deadlines
+    uploads/          disk-backed avatars, banners and attachments
     judging/          assignment, CrowdBT, judge flow, review/publish
     dashboard/        aggregated user home
     chat/             persisted team chat + websocket hub
@@ -113,11 +114,13 @@ See `.env.example`. Important values:
 - `AUTO_MIGRATE` — run embedded migrations when the API boots.
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — optional Google sign-in.
 - `ADMIN_EMAILS` — comma-separated emails allowed into the feedback queue.
+- `UPLOAD_DIR` - disk root for avatars, banners and attachments (`/data/uploads` in Compose).
+- `UPLOAD_QUOTA_MB` - per-account upload ceiling, default `250`; `0` disables the quota.
 - `NEXT_PUBLIC_WS_BASE` — websocket origin for team chat (defaults to same-origin).
 
 ## Security notes
 
-- Passwords: argon2id (`m=65536`, `t=3`, `p=2`), PHC encoded.
+- Passwords: bcrypt (default cost), with legacy argon2id hashes verified and upgraded on the next login.
 - Sessions: 32-byte opaque token, only its SHA-256 stored, HttpOnly + SameSite=Lax cookie.
 - CSRF: Origin/Referer allowlist plus SameSite cookies.
 - Login lockout: 8 failures per IP+email hash in 15 minutes → 15-minute lock.

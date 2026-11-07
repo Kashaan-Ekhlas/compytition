@@ -423,4 +423,29 @@ Suggested change: export `uploads.IDFromPath`, `uploads.PathFor` and `uploads.Pr
 3. Apply the small UI guards and input resets (10, 11, 12, 13, 14, 15).
 4. Add the schema invariant (16), deduplicate URL helpers (18), then add the missing tests (17).
 
-All findings were checked against the current tree. No fixes were applied during this review pass.
+## Implementation pass (2026-11-07)
+
+All 18 findings are implemented. PPT and PPTX attachments are now download-only, and passwords use bcrypt with legacy argon2id hashes upgraded on the next successful login.
+
+| # | Status | Implementation |
+|---|---|---|
+| 1 | Fixed | The judge shortcut effect returns early when `preview` is set. `Preview` opens a native `<dialog>` via `showModal()`, so focus enters the dialog and returns to the trigger on close. |
+| 2 | Fixed | `uploads.authorize` accepts a caller with access through `HasSubmissionAttachmentAccess`, scoped by event, upload URL, submission creator and team membership. Covered by `TestAuthorizeAttachment`. |
+| 3 | Removed | LibreOffice conversion was deleted rather than bounded. Uploads never run a document converter. |
+| 4 | Fixed | Attachment responses use `Cache-Control: private, no-store`. Public avatars and banners keep the immutable cache. |
+| 5 | Fixed | `DeleteAvatar` clears the profile pointer, deletes the upload row and removes the file. `Save` also deletes a replaced avatar. Covered by `TestDeleteAvatarRemovesFileAndRow`. |
+| 6 | Removed | No converter process exists, so there is no inherited environment to leak. |
+| 7 | Fixed | `golang.org/x/image/webp` is registered so `image.DecodeConfig` validates WebP bytes and dimensions. Covered by `TestValidateFileContentsChecksWebPDimensions`. |
+| 8 | Fixed | `NewService` resolves `UPLOAD_DIR` to an absolute root once and logs a fallback if `filepath.Abs` fails. |
+| 9 | Fixed | `POST /uploads` uses a dedicated 20 requests/minute limiter. `SumUploadBytesByOwner` enforces the `UPLOAD_QUOTA_MB` quota (250 MB default). Replaced avatars and unreferenced banners delete their files. |
+| 10 | Fixed | `uploadFile` mirrors the 4 MB, 8 MB and 25 MB limits and throws an `ApiError` before sending. Covered by the `uploadFile` size tests. |
+| 11 | Fixed | The submit button uses `disabled={busy || fileBusy}`. |
+| 12 | Fixed | The event form button uses `disabled={busy || bannerBusy || title.trim().length < 3}`. |
+| 13 | Fixed | The settings avatar input clears `event.target.value` after selection, matching onboarding and the event form. |
+| 14 | Fixed | Every styled label wrapping an `sr-only` file input has `focus-within:outline`. |
+| 15 | Fixed | The preview overlay is a native `<dialog>` with `showModal()`, `onClose`, backdrop click dismissal and native focus trapping. The custom Escape effect was removed. |
+| 16 | Fixed | Migration `000007_upload_constraints` adds `uploads_event_scope`, restricts preview keys to PDFs, and clears legacy non-PDF preview pointers. |
+| 17 | Fixed | `uploads.Service` depends on a narrow `Store` interface. Tests cover authorization, teammates, judge and staff access, lifecycle failures, quota, PDF-only previews, avatar deletion, banner references, path parsing and WebP validation. |
+| 18 | Fixed | `uploads.IDFromPath`, `PathFor` and `PreviewPath` are exported and reused by the events, submissions and uploads services. |
+
+Verification: `gofmt`, `go vet ./...`, `go test ./...`, `npx tsc --noEmit`, `npm test -- --run` and `npm run build` pass. Browser checks confirmed the PDF preview dialog, the blocked `1`/`2` shortcuts while it is open, focus restoration on Escape, and the download-only PPT rendering.

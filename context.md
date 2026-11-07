@@ -21,7 +21,7 @@ compytition/
     db/embed.go      embeds migrations for the API/migrate binaries
     internal/
       apperr/        domain errors
-      auth/          argon2id, sessions, onboarding, Google OIDC
+      auth/          bcrypt, sessions, onboarding, Google OIDC
       chat/          persisted team chat + websocket hub
       config/        env config, fail-fast validation
       db/            SQLC generated code + pgx pool + tx helper + migrator
@@ -50,7 +50,7 @@ Data flow: browser → Next.js `app/api` rewrite proxy → Go API `/api/v1/*` �
 - **2026-10-27** - Follow the prompt's `apps/api` + `apps/web` layout; removed the empty `backend/`/`frontend/` folders.
 - **2026-10-27** - Migration tool: `golang-migrate` with embedded `iofs` source, applied automatically at API boot (`AUTO_MIGRATE`) and available via `cmd/migrate`.
 - **2026-10-27** - SQLC `pgx/v5` output in `internal/db`; UUID overrides to `uuid.UUID`; nullable UUID/timestamp overrides to pointers. JSONB is generated as `[]byte` and parsed at the service boundary.
-- **2026-10-27** - Passwords: argon2id, m=65536 KiB, t=3, p=2, 16-byte salt, 32-byte key, PHC encoding.
+- **2026-10-27** - Passwords: bcrypt (default cost) with 72-byte input cap. Legacy argon2id hashes remain verifiable and are upgraded on the next successful login.
 - **2026-10-27** - Sessions: 32-byte random URL-safe token, SHA-256 stored, HttpOnly + SameSite=Lax + Secure-in-prod cookie, 30-day default TTL, hourly expired-session cleanup.
 - **2026-10-27** - CSRF: Origin/Referer allowlist + SameSite=Lax (prompt allows Origin checks). CORS allows exactly `WEB_ORIGIN` with credentials.
 - **2026-10-27** - Login lockout: 8 failures per (IP,email) hash within 15 minutes → 15-minute lock. Generic auth errors prevent enumeration.
@@ -103,10 +103,11 @@ Key tables and invariants:
 
 - Bytes are written to disk under `UPLOAD_DIR` (`./uploads` by default, `/data/uploads` in Compose) in `avatar/`, `banner/` and `attachment/` subdirectories. Postgres stores only metadata and storage keys in `uploads`.
 - The Compose `uploads` named volume keeps files across container rebuilds. The directory is gitignored. Back it up together with the database; the metadata is useless without the bytes and vice versa.
-- Avatars are capped at 4 MB, banners at 8 MB and submission attachments at 25 MB. Image magic bytes and dimensions are checked, as are PDF/PPT/PPTX headers. PPTX files must also contain `ppt/presentation.xml`.
-- Avatars and banners are public when fetched. Attachments require authentication and are limited to the owner, event staff, judges and admins.
-- PDFs preview natively. PPT/PPTX uploads are converted to PDF with LibreOffice (`soffice`) during upload; a failed conversion leaves the original downloadable but without an embedded preview.
-- The API serves files itself, so the web app keeps a same-origin `/api/v1/uploads/...` URL. File responses allow same-origin framing so the judge preview dialog can embed the PDF.
+- Avatars are capped at 4 MB, banners at 8 MB and submission attachments at 25 MB. Image magic bytes and dimensions are checked, including WebP via `golang.org/x/image/webp`. PDF/PPT/PPTX headers are checked, and PPTX files must contain `ppt/presentation.xml`.
+- Each account has a 250 MB storage ceiling (`UPLOAD_QUOTA_MB`). Upload writes use a dedicated 20 request/minute limiter. Replaced avatars, removed avatars and unreferenced banners delete their row and disk file.
+- Avatars and banners are public when fetched. Attachments require authentication and are limited to the owner, event staff, judges, admins, and teammates on the owning submission.
+- PDFs preview natively in the judge dialog. PPT and PPTX files are download-only: the API does not render or convert them, so no document converter runs in the API container.
+- The API serves files itself, so the web app keeps a same-origin `/api/v1/uploads/...` URL. File responses allow same-origin framing so the judge preview dialog can embed PDFs. Attachment responses use `Cache-Control: private, no-store`.
 
 ## Judging System
 
@@ -199,6 +200,7 @@ Demo accounts: `host@compytition.local` (organizer), `ava@`, `milo@`, `rin@compy
 | `GOOGLE_REDIRECT_URL` | OAuth callback | `http://localhost:8080/api/v1/auth/google/callback` |
 | `ADMIN_EMAILS` | comma-separated admin emails | `you@example.com` |
 | `UPLOAD_DIR` | disk root for avatars, banners and attachments | `./uploads` locally, `/data/uploads` in Compose |
+| `UPLOAD_QUOTA_MB` | per-account upload ceiling; `0` disables it | `250` |
 | `LOG_LEVEL` | slog level | `info` |
 | `RATE_LIMIT_PER_MIN` | global per-IP budget | `240` |
 | `API_INTERNAL_URL` | Next rewrite target | `http://api:8080` in Compose |
@@ -234,7 +236,7 @@ Demo accounts: `host@compytition.local` (organizer), `ava@`, `milo@`, `rin@compy
 
 Newest first.
 
-- **2026-11-06** - Optional media uploads: profile pictures in onboarding/settings, organizer event banners, and direct PDF/PPT/PPTX submission attachments. Bytes go to `UPLOAD_DIR` (Compose `uploads` volume), metadata to the `uploads` table. PPT/PPTX decks are converted to PDF with LibreOffice for an embedded judge preview; PDFs preview directly. File responses allow same-origin framing while the global API CSP still denies it. Added upload validation tests and documented storage.
+- **2026-11-06** - Upload hardening and bcrypt: the 18 CodeRabbit findings are implemented. Team members can open attachments they did not upload, the judge shortcuts are blocked while a preview is open, attachments use `no-store`, avatars and replaced banners delete their files, uploads have a per-user quota and a dedicated limiter, WebP is decoded, upload paths are absolute, and URL helpers are shared. PPT/PPTX files are download-only; LibreOffice conversion was removed, so the API container no longer ships a converter. Passwords now use bcrypt, with legacy argon2id hashes upgraded on login. Added upload authorization, quota, preview and deletion tests plus bcrypt and legacy hash tests.
 
 - **2026-10-29** - CI seed repair and 300-entry stress test: the seed now writes `{}` submission answers and uses a finished demo timeline so derived judging can run. A full HTTP-API run created 310 accounts, 5 teams via invite link, 300 submissions, and 1,200 comparisons across 3 judges. CrowdBT scored Spearman 0.68 / Kendall 0.48 against a known order; review now warns when a large event has fewer than 12 comparisons per entry.
 - **2026-10-29** - Final review pass: Google sign-in and sign-up now preserve the `next` destination (including `/onboarding?next=...`) so staff and team invite links still auto-accept for Google accounts. Header nav is nudged onto the wordmark baseline.

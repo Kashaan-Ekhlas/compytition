@@ -39,9 +39,9 @@ Status legend: ✅ implemented
 
 | Status | Method | Path | Auth | Notes |
 |---|---|---|---|---|
-| ✅ | POST | `/uploads?kind=avatar\|banner\|attachment` | user | multipart `file`, 4 MB image / 8 MB banner / 25 MB attachment; attachments also need `event_id` and a confirmed registration; returns `{ upload: { id, url, preview_url, name, mime, size } }` |
-| ✅ | GET | `/uploads/{id}` | public for avatars/banners; owner/staff/judge/admin for attachments | serves bytes inline; `?preview=1` serves the converted PDF for PPT/PPTX or the original for PDF; `?download=1` forces a download |
-| ✅ | DELETE | `/profile/avatar` | user | clears the profile picture pointer |
+| ✅ | POST | `/uploads?kind=avatar\|banner\|attachment` | user | multipart `file`, 4 MB image / 8 MB banner / 25 MB attachment; attachments also need `event_id` and a confirmed registration; 20 requests/minute; per-account quota (`UPLOAD_QUOTA_MB`, 250 MB default); returns `{ upload: { id, url, preview_url, name, mime, size } }` |
+| ✅ | GET | `/uploads/{id}` | public for avatars/banners; owner/staff/judge/admin/submission teammate for attachments | serves bytes; `?preview=1` works for PDFs only and returns 404 for PPT/PPTX; `?download=1` forces a download, and PPT/PPTX always download |
+| ✅ | DELETE | `/profile/avatar` | user | deletes the profile picture row and disk file |
 
 ## Events
 

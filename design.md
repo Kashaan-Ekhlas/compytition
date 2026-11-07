@@ -101,7 +101,7 @@ Restyle every shadcn component to these tokens. Do not ship defaults.
 - **Password checklist:** five criteria (8+ characters, uppercase, lowercase, number, special symbol) each with a pink circular check. The register and join buttons stay disabled until all five pass and the confirmation matches.
 - **Avatar:** square, 2px ink border, purple fill with initials when no picture. Optional profile pictures upload from onboarding and settings; the header, profile card and event UI reuse the same square treatment.
 - **Banner:** wide cover image inside the event card and above the public event title, clipped by the usual 2px ink border. Keep text off the image; banners are decorative and never the only label.
-- **Attachment preview:** judge-facing modal with a window-chrome header, file name, Download link and a full-height embedded PDF. PPT/PPTX is converted server-side; if conversion fails the UI falls back to a download link.
+- **Attachment preview:** judge-facing modal with a window-chrome header, file name, Download link and a full-height embedded PDF. PPT and PPTX files are download-only and never rendered in the browser; the UI shows a Download link instead of a Preview button.
 - **Card:** surface, 2px border, hard shadow. Optional header strip in `--accent-3` with a readable title, like a window title bar.
 - **Window motif:** event cards and modals can use a tiny title bar with three square dots. Keep it flat and tasteful.
 - **Badge / Tag:** readable bold label, square corners, accent or panel background (OPEN, CLOSING SOON, TEAM, SOLO).

@@ -1,5 +1,11 @@
 const BASE = process.env.NEXT_PUBLIC_API_BASE ?? "/api/v1";
 
+const MAX_UPLOAD_BYTES: Record<string, number> = {
+  avatar: 4 << 20,
+  banner: 8 << 20,
+  attachment: 25 << 20,
+};
+
 export class ApiError extends Error {
   status: number;
   code: string;
@@ -47,6 +53,11 @@ export async function uploadFile<T>(
   file: File,
   query?: Options["query"],
 ): Promise<T> {
+  const limit = MAX_UPLOAD_BYTES[String(query?.kind ?? "")];
+  if (limit && file.size > limit) {
+    const message = `Keep this file under ${limit >> 20} MB.`;
+    throw new ApiError(413, "file_too_large", message, { file: message });
+  }
   const body = new FormData();
   body.append("file", file);
   const response = await fetch(buildUrl(path, query), {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api, errorMessage } from "@/lib/api";
@@ -33,6 +33,7 @@ export default function JudgeEventPage() {
     url: string;
     download: string;
   } | null>(null);
+  const previewDialogRef = useRef<HTMLDialogElement>(null);
 
   const fetchNext = useCallback(async () => {
     const data = await api<JudgingNext>(`/judge/events/${eventId}/next`);
@@ -130,7 +131,7 @@ export default function JudgeEventPage() {
 
   useEffect(() => {
     function onKeyDown(keyEvent: KeyboardEvent) {
-      if (!pair || busy) return;
+      if (!pair || busy || preview) return;
       const target = keyEvent.target as HTMLElement | null;
       const tag = target?.tagName?.toLowerCase();
       if (tag === "input" || tag === "textarea" || tag === "select" || target?.isContentEditable) {
@@ -150,12 +151,10 @@ export default function JudgeEventPage() {
   });
 
   useEffect(() => {
-    if (!preview) return;
-    function onKeyDown(keyEvent: KeyboardEvent) {
-      if (keyEvent.key === "Escape") setPreview(null);
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    const dialog = previewDialogRef.current;
+    if (!dialog) return;
+    if (preview && !dialog.open) dialog.showModal();
+    if (!preview && dialog.open) dialog.close();
   }, [preview]);
 
   if (authLoading || loading) {
@@ -184,18 +183,17 @@ export default function JudgeEventPage() {
 
   return (
     <div className="mx-auto max-w-content px-4 py-6 sm:px-6 sm:py-8">
-      {preview ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/70 p-3 sm:p-6"
-          role="dialog"
-          aria-modal="true"
-          aria-label={`${preview.title} attachment preview`}
-          onClick={() => setPreview(null)}
-        >
-          <div
-            className="flex h-full max-h-[92vh] w-full max-w-5xl flex-col border-2 border-ink bg-surface shadow-hard"
-            onClick={(clickEvent) => clickEvent.stopPropagation()}
-          >
+      <dialog
+        ref={previewDialogRef}
+        aria-label={preview ? `${preview.title} attachment preview` : "Attachment preview"}
+        onClose={() => setPreview(null)}
+        onClick={(clickEvent) => {
+          if (clickEvent.target === clickEvent.currentTarget) clickEvent.currentTarget.close();
+        }}
+        className="fixed inset-0 z-50 m-0 h-dvh w-screen max-h-none max-w-none border-0 bg-transparent p-3 backdrop:bg-ink/70 sm:p-6"
+      >
+        {preview ? (
+          <div className="mx-auto flex h-full max-h-[92vh] w-full max-w-5xl flex-col border-2 border-ink bg-surface shadow-hard">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b-2 border-ink bg-accent-3 px-4 py-2">
               <div className="min-w-0">
                 <p className="truncate font-pixel text-sm">{preview.title}</p>
@@ -220,8 +218,8 @@ export default function JudgeEventPage() {
               className="min-h-0 flex-1 bg-white"
             />
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </dialog>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <Link href="/judge" className="chunky-link font-mono text-sm">
@@ -400,6 +398,9 @@ function SubmissionPanel({
 }) {
   const attachmentName = submission.file_name || "Attached file";
   const previewURL = submission.file_preview_url;
+  const downloadURL = submission.file_url.includes("/api/v1/uploads/")
+    ? `${submission.file_url}?download=1`
+    : submission.file_url;
   return (
     <article className="flex flex-col border-2 border-ink bg-surface shadow-hard">
       <div className="flex items-center justify-between gap-2 border-b-2 border-ink bg-accent-3 px-4 py-2">
@@ -449,9 +450,7 @@ function SubmissionPanel({
                     title: submission.title,
                     name: attachmentName,
                     url: previewURL,
-                    download: submission.file_url.includes("/api/v1/uploads/")
-                      ? `${submission.file_url}?download=1`
-                      : submission.file_url,
+                    download: downloadURL,
                   })
                 }
               >
@@ -459,7 +458,7 @@ function SubmissionPanel({
               </Button>
             ) : (
               <a
-                href={submission.file_url}
+                href={downloadURL}
                 target="_blank"
                 rel="noreferrer noopener"
                 className="chunky-link font-mono text-sm"

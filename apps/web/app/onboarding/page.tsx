@@ -298,7 +298,7 @@ export default function OnboardingPage() {
                   <p className="text-sm text-muted">
                     Optional. You can add or change this later in settings.
                   </p>
-                  <label className="inline-flex min-h-10 cursor-pointer items-center border-2 border-ink bg-surface px-3 font-pixel text-sm shadow-hard-sm hover:bg-accent/20">
+                  <label className="inline-flex min-h-10 cursor-pointer items-center border-2 border-ink bg-surface px-3 font-pixel text-sm shadow-hard-sm hover:bg-accent/20 focus-within:outline focus-within:outline-3 focus-within:outline-offset-2">
                     {avatarBusy ? "Uploading…" : avatarUrl ? "Change picture" : "Upload picture"}
                     <input
                       type="file"

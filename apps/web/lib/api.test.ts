@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { api, ApiError, errorMessage, fieldErrors } from "./api";
+import { api, ApiError, errorMessage, fieldErrors, uploadFile } from "./api";
 
 function mockFetch(response: Response) {
   const spy = vi.fn().mockResolvedValue(response);
@@ -83,6 +83,46 @@ describe("api", () => {
     expect(error.code).toBe("request_failed");
     expect(error.message).toBe("Request failed (502).");
     expect(error.fields).toBeUndefined();
+  });
+});
+
+describe("uploadFile", () => {
+  it("rejects oversized files before sending a request", async () => {
+    const spy = mockFetch(new Response(null, { status: 201 }));
+    const file = new File([new Uint8Array((25 << 20) + 1)], "deck.pdf", {
+      type: "application/pdf",
+    });
+
+    const error = (await uploadFile("/uploads", file, { kind: "attachment" }).catch(
+      (err) => err,
+    )) as ApiError;
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error.status).toBe(413);
+    expect(error.code).toBe("file_too_large");
+    expect(fieldErrors(error)).toEqual({ file: "Keep this file under 25 MB." });
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("posts multipart form data with credentials", async () => {
+    const spy = mockFetch(
+      new Response(JSON.stringify({ upload: { id: "abc" } }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const file = new File(["png"], "avatar.png", { type: "image/png" });
+
+    const result = await uploadFile<{ upload: { id: string } }>("/uploads", file, {
+      kind: "avatar",
+    });
+
+    expect(result.upload.id).toBe("abc");
+    const [url, init] = spy.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/v1/uploads?kind=avatar");
+    expect(init.method).toBe("POST");
+    expect(init.credentials).toBe("include");
+    expect(init.body).toBeInstanceOf(FormData);
   });
 });
 

@@ -177,7 +177,7 @@ export function EventForm({
             </div>
           )}
           <div className="flex flex-wrap items-center gap-2">
-            <label className="inline-flex min-h-10 cursor-pointer items-center border-2 border-ink bg-surface px-3 font-pixel text-sm shadow-hard-sm hover:bg-accent/20">
+            <label className="inline-flex min-h-10 cursor-pointer items-center border-2 border-ink bg-surface px-3 font-pixel text-sm shadow-hard-sm hover:bg-accent/20 focus-within:outline focus-within:outline-3 focus-within:outline-offset-2">
               {bannerBusy ? "Uploading…" : bannerUrl ? "Change banner" : "Upload banner"}
               <input
                 type="file"
@@ -479,7 +479,7 @@ export function EventForm({
         <p className="font-mono text-sm text-muted">
           Saving as a draft keeps the event hidden until you publish.
         </p>
-        <Button type="submit" size="lg" disabled={busy || title.trim().length < 3}>
+        <Button type="submit" size="lg" disabled={busy || bannerBusy || title.trim().length < 3}>
           {busy ? "Saving…" : initial ? "Save changes" : "Create draft"}
         </Button>
       </div>

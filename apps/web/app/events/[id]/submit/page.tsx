@@ -245,8 +245,8 @@ export default function SubmitPage() {
             Presentation or PDF
           </p>
           <p className="text-sm text-muted">
-            Optional. Attach a PDF, PPT or PPTX deck. Judges can preview it without leaving the
-            comparison screen. Up to 25 MB.
+            Optional. Attach a PDF, PPT or PPTX deck. PDFs can be previewed by judges; PPT and PPTX
+            files are downloadable only. Up to 25 MB.
           </p>
           {form.file_url && fileMeta ? (
             <div className="flex flex-wrap items-center justify-between gap-3 border-2 border-ink bg-surface px-3 py-2">
@@ -267,6 +267,18 @@ export default function SubmitPage() {
                     Preview ↗
                   </a>
                 ) : null}
+                <a
+                  href={
+                    form.file_url.includes("/api/v1/uploads/")
+                      ? `${form.file_url}?download=1`
+                      : form.file_url
+                  }
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="chunky-link font-mono text-sm"
+                >
+                  Download ↗
+                </a>
                 <Button
                   type="button"
                   variant="ghost"
@@ -281,7 +293,7 @@ export default function SubmitPage() {
               </div>
             </div>
           ) : null}
-          <label className="inline-flex min-h-10 cursor-pointer items-center border-2 border-ink bg-surface px-3 font-pixel text-sm shadow-hard-sm hover:bg-accent/20">
+          <label className="inline-flex min-h-10 cursor-pointer items-center border-2 border-ink bg-surface px-3 font-pixel text-sm shadow-hard-sm hover:bg-accent/20 focus-within:outline focus-within:outline-3 focus-within:outline-offset-2">
             {fileBusy ? "Uploading…" : form.file_url ? "Replace file" : "Attach file"}
             <input
               type="file"
@@ -318,7 +330,7 @@ export default function SubmitPage() {
           <Link href={`/events/${event.id}`} className="chunky-link font-mono text-sm">
             Cancel
           </Link>
-          <Button type="submit" disabled={busy}>
+          <Button type="submit" disabled={busy || fileBusy}>
             {busy ? "Saving…" : submission ? "Save changes" : "Submit entry"}
           </Button>
         </div>

@@ -93,7 +93,7 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	defer f.Close()
 
 	disposition := "inline"
-	if download {
+	if download || (file.Kind == KindAttachment && file.Mime != "application/pdf") {
 		disposition = "attachment"
 	}
 	w.Header().Set("Content-Type", file.Mime)
@@ -104,7 +104,7 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Security-Policy", "frame-ancestors 'self'")
 	w.Header().Set("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": file.Name}))
 	if file.Kind == KindAttachment {
-		w.Header().Set("Cache-Control", "private, max-age=3600")
+		w.Header().Set("Cache-Control", "private, no-store")
 	} else {
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	}

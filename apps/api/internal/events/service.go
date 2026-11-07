@@ -21,6 +21,7 @@ import (
 	"compytition/internal/apperr"
 	"compytition/internal/config"
 	"compytition/internal/db"
+	"compytition/internal/uploads"
 )
 
 type Criterion struct {
@@ -290,7 +291,7 @@ func (s *Service) resolveBanner(ctx context.Context, userID uuid.UUID, raw, allo
 	if allowed != "" && raw == allowed {
 		return allowed, nil
 	}
-	id, ok := uploadIDFromURL(raw)
+	id, ok := uploads.IDFromPath(raw)
 	if !ok {
 		return "", apperr.Invalid("banner_url", "Upload a banner image instead of pasting a link.")
 	}
@@ -298,23 +299,7 @@ func (s *Service) resolveBanner(ctx context.Context, userID uuid.UUID, raw, allo
 	if err != nil || up.Kind != "banner" || up.OwnerID != userID {
 		return "", apperr.Invalid("banner_url", "Upload a banner image instead of pasting a link.")
 	}
-	return "/api/v1/uploads/" + id.String(), nil
-}
-
-func uploadIDFromURL(raw string) (uuid.UUID, bool) {
-	const prefix = "/api/v1/uploads/"
-	if !strings.HasPrefix(raw, prefix) {
-		return uuid.Nil, false
-	}
-	rest := strings.TrimPrefix(raw, prefix)
-	if rest == "" || strings.ContainsAny(rest, "/?#") {
-		return uuid.Nil, false
-	}
-	id, err := uuid.Parse(rest)
-	if err != nil {
-		return uuid.Nil, false
-	}
-	return id, true
+	return uploads.PathFor(id), nil
 }
 
 func (s *Service) Create(ctx context.Context, organizerID uuid.UUID, in EventFields) (*EventView, error) {
@@ -415,6 +400,11 @@ func (s *Service) Update(ctx context.Context, userID, eventID uuid.UUID, in Even
 	})
 	if err != nil {
 		return nil, err
+	}
+	if ev.BannerUrl != "" && ev.BannerUrl != banner {
+		if err := uploads.DeleteOwnedUpload(ctx, s.store, s.cfg.UploadDir, userID, ev.BannerUrl, uploads.KindBanner); err != nil {
+			s.log.Warn("could not remove replaced banner", "url", ev.BannerUrl, "error", err)
+		}
 	}
 	_ = s.store.CreateAuditEntry(ctx, db.CreateAuditEntryParams{
 		ActorID: &userID, EventID: &eventID, Action: "event.updated", Metadata: []byte(`{}`),

@@ -189,6 +189,15 @@ func (s *Service) Login(ctx context.Context, email, password, ip string) (*Sessi
 		s.recordFailure(ctx, attemptKey)
 		return nil, ErrInvalidCredentials
 	}
+	if NeedsRehash(*identity.SecretHash) {
+		if hash, hashErr := HashPassword(password); hashErr == nil {
+			if updateErr := s.store.UpdateIdentitySecret(ctx, db.UpdateIdentitySecretParams{ID: identity.ID, SecretHash: &hash}); updateErr != nil {
+				s.log.Warn("could not upgrade password hash", "error", updateErr)
+			}
+		} else {
+			s.log.Warn("could not upgrade password hash", "error", hashErr)
+		}
+	}
 	_ = s.store.ClearLoginAttempts(ctx, attemptKey)
 
 	token, tokenHash, err := newSessionToken()
@@ -414,6 +423,9 @@ func validatePassword(pw string) string {
 	}
 	if len(pw) > 128 {
 		return "Use at most 128 characters."
+	}
+	if len([]byte(pw)) > 72 {
+		return "Use at most 72 bytes."
 	}
 	var hasLetter, hasDigit bool
 	for _, r := range pw {

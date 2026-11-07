@@ -11,6 +11,17 @@ import (
 	"github.com/google/uuid"
 )
 
+const countEventsUsingBanner = `-- name: CountEventsUsingBanner :one
+SELECT count(*)::int FROM events WHERE banner_url = $1
+`
+
+func (q *Queries) CountEventsUsingBanner(ctx context.Context, bannerUrl string) (int32, error) {
+	row := q.db.QueryRow(ctx, countEventsUsingBanner, bannerUrl)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createUpload = `-- name: CreateUpload :one
 INSERT INTO uploads (
     owner_id, kind, event_id, original_name, mime_type, size_bytes,
@@ -88,6 +99,38 @@ func (q *Queries) GetUpload(ctx context.Context, id uuid.UUID) (Upload, error) {
 	return i, err
 }
 
+const hasSubmissionAttachmentAccess = `-- name: HasSubmissionAttachmentAccess :one
+SELECT EXISTS (
+    SELECT 1
+    FROM submissions s
+    WHERE s.event_id = $1
+      AND s.file_url = '/api/v1/uploads/' || $2::text
+      AND (
+          s.created_by = $3
+          OR (
+              s.team_id IS NOT NULL
+              AND EXISTS (
+                  SELECT 1 FROM team_members m
+                  WHERE m.team_id = s.team_id AND m.user_id = $3
+              )
+          )
+      )
+) AS allowed
+`
+
+type HasSubmissionAttachmentAccessParams struct {
+	EventID  uuid.UUID `json:"event_id"`
+	UploadID string    `json:"upload_id"`
+	UserID   uuid.UUID `json:"user_id"`
+}
+
+func (q *Queries) HasSubmissionAttachmentAccess(ctx context.Context, arg HasSubmissionAttachmentAccessParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasSubmissionAttachmentAccess, arg.EventID, arg.UploadID, arg.UserID)
+	var allowed bool
+	err := row.Scan(&allowed)
+	return allowed, err
+}
+
 const setProfileAvatar = `-- name: SetProfileAvatar :exec
 INSERT INTO profiles (user_id, avatar_url)
 VALUES ($1, $2)
@@ -103,4 +146,15 @@ type SetProfileAvatarParams struct {
 func (q *Queries) SetProfileAvatar(ctx context.Context, arg SetProfileAvatarParams) error {
 	_, err := q.db.Exec(ctx, setProfileAvatar, arg.UserID, arg.AvatarUrl)
 	return err
+}
+
+const sumUploadBytesByOwner = `-- name: SumUploadBytesByOwner :one
+SELECT COALESCE(sum(size_bytes), 0)::bigint FROM uploads WHERE owner_id = $1
+`
+
+func (q *Queries) SumUploadBytesByOwner(ctx context.Context, ownerID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, sumUploadBytesByOwner, ownerID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }

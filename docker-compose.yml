@@ -35,6 +35,7 @@ services:
       GOOGLE_REDIRECT_URL: ${GOOGLE_REDIRECT_URL:-http://localhost:8080/api/v1/auth/google/callback}
       ADMIN_EMAILS: ${ADMIN_EMAILS:-}
       UPLOAD_DIR: /data/uploads
+      UPLOAD_QUOTA_MB: ${UPLOAD_QUOTA_MB:-250}
     ports:
       - "${API_PORT:-8080}:8080"
     volumes:

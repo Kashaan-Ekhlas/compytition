@@ -62,7 +62,8 @@ func NewRouter(api *API) http.Handler {
 	// Uploads. Avatars and banners are public when read; attachments are
 	// authorised per request inside the handler.
 	uploadHandler := uploads.NewHandler(uploads.NewService(api.Store, api.Cfg, api.Log), api.Log)
-	mux.Handle("POST /api/v1/uploads", RequireAuth(http.HandlerFunc(uploadHandler.Create)))
+	uploadLimiter := NewRateLimiter(20, time.Minute)
+	mux.Handle("POST /api/v1/uploads", RequireAuth(RateLimit(uploadLimiter)(http.HandlerFunc(uploadHandler.Create))))
 	mux.Handle("GET /api/v1/uploads/{id}", http.HandlerFunc(uploadHandler.Get))
 	mux.Handle("DELETE /api/v1/profile/avatar", RequireAuth(http.HandlerFunc(uploadHandler.DeleteAvatar)))
 

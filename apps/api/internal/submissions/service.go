@@ -17,6 +17,7 @@ import (
 	"compytition/internal/apperr"
 	"compytition/internal/config"
 	"compytition/internal/db"
+	"compytition/internal/uploads"
 )
 
 type Service struct {
@@ -393,8 +394,10 @@ func validateInput(in *Input) error {
 			fields[key] = "Enter a valid http(s) URL."
 		}
 	}
-	if in.FileURL != "" && !validURL(in.FileURL) && !internalUploadPath(in.FileURL) {
-		fields["file_url"] = "Upload a PDF or PowerPoint file."
+	if in.FileURL != "" && !validURL(in.FileURL) {
+		if _, ok := uploads.IDFromPath(in.FileURL); !ok {
+			fields["file_url"] = "Upload a PDF or PowerPoint file."
+		}
 	}
 	if in.Status != "" && in.Status != "draft" && in.Status != "submitted" {
 		fields["status"] = "Status must be draft or submitted."
@@ -420,19 +423,20 @@ func (s *Service) resolveAttachment(ctx context.Context, userID, eventID uuid.UU
 		return attachment{}, nil
 	}
 	if existing != nil && raw == existing.FileUrl {
+		preview := ""
+		if existing.FileMime == "application/pdf" {
+			preview = existing.FileUrl + "?preview=1"
+		}
 		return attachment{
 			URL: existing.FileUrl, Name: existing.FileName,
-			Mime: existing.FileMime, Preview: existing.FilePreviewUrl,
+			Mime: existing.FileMime, Preview: preview,
 		}, nil
 	}
-	if !internalUploadPath(raw) {
+	id, ok := uploads.IDFromPath(raw)
+	if !ok {
 		if validURL(raw) {
 			return attachment{URL: raw}, nil
 		}
-		return attachment{}, apperr.Invalid("file_url", "Upload a PDF or PowerPoint file.")
-	}
-	id, ok := uploadIDFromPath(raw)
-	if !ok {
 		return attachment{}, apperr.Invalid("file_url", "Upload a PDF or PowerPoint file.")
 	}
 	up, err := s.store.GetUpload(ctx, id)
@@ -442,38 +446,10 @@ func (s *Service) resolveAttachment(ctx context.Context, userID, eventID uuid.UU
 	if up.EventID != nil && *up.EventID != eventID {
 		return attachment{}, apperr.Invalid("file_url", "That file belongs to a different event.")
 	}
-	preview := ""
-	switch {
-	case up.PreviewKey != "":
-		preview = "/api/v1/uploads/" + id.String() + "?preview=1"
-	case up.MimeType == "application/pdf":
-		preview = "/api/v1/uploads/" + id.String() + "?preview=1"
-	}
 	return attachment{
-		URL: "/api/v1/uploads/" + id.String(), Name: up.OriginalName,
-		Mime: up.MimeType, Preview: preview,
+		URL: uploads.PathFor(id), Name: up.OriginalName,
+		Mime: up.MimeType, Preview: uploads.PreviewPath(up),
 	}, nil
-}
-
-func internalUploadPath(raw string) bool {
-	_, ok := uploadIDFromPath(raw)
-	return ok
-}
-
-func uploadIDFromPath(raw string) (uuid.UUID, bool) {
-	const prefix = "/api/v1/uploads/"
-	if !strings.HasPrefix(raw, prefix) {
-		return uuid.Nil, false
-	}
-	rest := strings.TrimPrefix(raw, prefix)
-	if rest == "" || strings.ContainsAny(rest, "/?#") {
-		return uuid.Nil, false
-	}
-	id, err := uuid.Parse(rest)
-	if err != nil {
-		return uuid.Nil, false
-	}
-	return id, true
 }
 
 func submissionOpen(ev db.GetEventByIDRow) error {

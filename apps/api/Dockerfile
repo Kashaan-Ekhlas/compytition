@@ -10,8 +10,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/api ./c
  && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/seed ./cmd/seed
 
 FROM alpine:3.20
-RUN apk add --no-cache ca-certificates tzdata libreoffice-impress libreoffice-writer ttf-dejavu \
-        --repository=https://dl-cdn.alpinelinux.org/alpine/v3.20/community \
+RUN apk add --no-cache ca-certificates tzdata \
  && adduser -D -H -u 10001 app \
  && mkdir -p /data/uploads \
  && chown -R app:app /data

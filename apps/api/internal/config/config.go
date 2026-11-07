@@ -12,20 +12,21 @@ import (
 // Config is loaded once at startup from environment variables. The process
 // fails fast when a required value is missing or malformed.
 type Config struct {
-	Env             string
-	Port            string
-	DatabaseURL     string
-	WebOrigin       string
-	SessionTTL      time.Duration
-	CookieSecure    bool
-	AutoMigrate     bool
-	GoogleClientID  string
-	GoogleSecret    string
-	GoogleRedirect  string
-	AdminEmails     map[string]bool
-	LogLevel        string
-	RateLimitPerMin int
-	UploadDir       string
+	Env              string
+	Port             string
+	DatabaseURL      string
+	WebOrigin        string
+	SessionTTL       time.Duration
+	CookieSecure     bool
+	AutoMigrate      bool
+	GoogleClientID   string
+	GoogleSecret     string
+	GoogleRedirect   string
+	AdminEmails      map[string]bool
+	LogLevel         string
+	RateLimitPerMin  int
+	UploadDir        string
+	UploadQuotaBytes int64
 }
 
 func Load() (*Config, error) {
@@ -34,6 +35,10 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	rateLimit, err := envInt("RATE_LIMIT_PER_MIN", 240)
+	if err != nil {
+		return nil, err
+	}
+	uploadQuotaMB, err := envInt("UPLOAD_QUOTA_MB", 250)
 	if err != nil {
 		return nil, err
 	}
@@ -46,20 +51,21 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	cfg := &Config{
-		Env:             env("APP_ENV", "development"),
-		Port:            env("PORT", "8080"),
-		DatabaseURL:     os.Getenv("DATABASE_URL"),
-		WebOrigin:       strings.TrimRight(env("WEB_ORIGIN", "http://localhost:3000"), "/"),
-		SessionTTL:      time.Duration(sessionTTLHours) * time.Hour,
-		CookieSecure:    cookieSecure,
-		AutoMigrate:     autoMigrate,
-		GoogleClientID:  os.Getenv("GOOGLE_CLIENT_ID"),
-		GoogleSecret:    os.Getenv("GOOGLE_CLIENT_SECRET"),
-		GoogleRedirect:  env("GOOGLE_REDIRECT_URL", "http://localhost:8080/api/v1/auth/google/callback"),
-		AdminEmails:     parseEmails(os.Getenv("ADMIN_EMAILS")),
-		LogLevel:        env("LOG_LEVEL", "info"),
-		RateLimitPerMin: rateLimit,
-		UploadDir:       env("UPLOAD_DIR", "./uploads"),
+		Env:              env("APP_ENV", "development"),
+		Port:             env("PORT", "8080"),
+		DatabaseURL:      os.Getenv("DATABASE_URL"),
+		WebOrigin:        strings.TrimRight(env("WEB_ORIGIN", "http://localhost:3000"), "/"),
+		SessionTTL:       time.Duration(sessionTTLHours) * time.Hour,
+		CookieSecure:     cookieSecure,
+		AutoMigrate:      autoMigrate,
+		GoogleClientID:   os.Getenv("GOOGLE_CLIENT_ID"),
+		GoogleSecret:     os.Getenv("GOOGLE_CLIENT_SECRET"),
+		GoogleRedirect:   env("GOOGLE_REDIRECT_URL", "http://localhost:8080/api/v1/auth/google/callback"),
+		AdminEmails:      parseEmails(os.Getenv("ADMIN_EMAILS")),
+		LogLevel:         env("LOG_LEVEL", "info"),
+		RateLimitPerMin:  rateLimit,
+		UploadDir:        env("UPLOAD_DIR", "./uploads"),
+		UploadQuotaBytes: int64(uploadQuotaMB) << 20,
 	}
 
 	if cfg.DatabaseURL == "" {
@@ -76,6 +82,9 @@ func Load() (*Config, error) {
 	}
 	if cfg.RateLimitPerMin < 1 {
 		return nil, fmt.Errorf("RATE_LIMIT_PER_MIN must be positive")
+	}
+	if uploadQuotaMB < 0 {
+		return nil, fmt.Errorf("UPLOAD_QUOTA_MB must not be negative")
 	}
 	if cfg.Env == "production" && !cfg.CookieSecure {
 		return nil, fmt.Errorf("COOKIE_SECURE must be true in production")

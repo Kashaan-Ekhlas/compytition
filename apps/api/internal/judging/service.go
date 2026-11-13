@@ -138,6 +138,7 @@ type Disagreement struct {
 
 type Review struct {
 	JudgingStatus  string             `json:"judging_status"`
+	RankingMode    string             `json:"ranking_mode"`
 	TotalPairs     int32              `json:"total_pairs"`
 	DonePairs      int32              `json:"done_pairs"`
 	PendingPairs   int32              `json:"pending_pairs"`
@@ -537,7 +538,6 @@ func (s *Service) Review(ctx context.Context, userID, eventID uuid.UUID) (*Revie
 	if err != nil {
 		return nil, err
 	}
-	model := s.recompute(outcomes)
 	counts, err := s.store.CountPairsForEvent(ctx, eventID)
 	if err != nil {
 		return nil, err
@@ -552,8 +552,18 @@ func (s *Service) Review(ctx context.Context, userID, eventID uuid.UUID) (*Revie
 		Criteria:      parseCriteria(ev.Criteria),
 		Disagreements: disagreements(outcomes, subs),
 	}
-	review.Rankings, review.CoverageMin, review.CoverageMax = rankEntries(model, subs, outcomes)
-	review.Judges = reliability(model, judgeRows)
+	if simpleRanking(judgeRows, outcomes) {
+		// With a single judge there is no cross-judge signal to calibrate, so
+		// rank by head-to-head wins and skip the CrowdBT replay.
+		review.RankingMode = "wins"
+		review.Rankings, review.CoverageMin, review.CoverageMax = rankByWins(subs, outcomes)
+		review.Judges = progressOnly(judgeRows)
+	} else {
+		review.RankingMode = "crowdbt"
+		model := s.recompute(outcomes)
+		review.Rankings, review.CoverageMin, review.CoverageMax = rankEntries(model, subs, outcomes)
+		review.Judges = reliability(model, judgeRows)
+	}
 	review.Warnings = reviewWarnings(review, subs, len(judgeRows))
 	return review, nil
 }
@@ -595,8 +605,23 @@ func (s *Service) Publish(ctx context.Context, userID, eventID uuid.UUID, force 
 	if len(outcomes) == 0 {
 		return nil, apperr.Invalid("judging", "There are no completed comparisons to publish.")
 	}
-	model := s.recompute(outcomes)
-	rankings, _, _ := rankEntries(model, subs, outcomes)
+	judgeRows, err := s.store.ListJudgeProgress(ctx, eventID)
+	if err != nil {
+		return nil, err
+	}
+	rankingMode := "crowdbt"
+	var rankings []RankingEntry
+	var reliabilities []JudgeReliability
+	if simpleRanking(judgeRows, outcomes) {
+		// A single judge is the whole signal. Count wins directly instead of
+		// fitting a reliability model to one rater.
+		rankingMode = "wins"
+		rankings, _, _ = rankByWins(subs, outcomes)
+	} else {
+		model := s.recompute(outcomes)
+		rankings, _, _ = rankEntries(model, subs, outcomes)
+		reliabilities = reliability(model, judgeRows)
+	}
 	entries := make([]ResultEntry, 0, len(rankings))
 	for _, r := range rankings {
 		entries = append(entries, ResultEntry{
@@ -605,11 +630,6 @@ func (s *Service) Publish(ctx context.Context, userID, eventID uuid.UUID, force 
 			Score: r.Score, Confidence: r.Confidence,
 		})
 	}
-	judgeRows, err := s.store.ListJudgeProgress(ctx, eventID)
-	if err != nil {
-		return nil, err
-	}
-	reliabilities := reliability(model, judgeRows)
 
 	err = s.store.InTx(ctx, func(q *db.Queries) error {
 		if err := q.DeleteResultsForEvent(ctx, eventID); err != nil {
@@ -644,6 +664,7 @@ func (s *Service) Publish(ctx context.Context, userID, eventID uuid.UUID, force 
 		}
 		meta, _ := json.Marshal(map[string]any{
 			"results": len(entries), "comparisons": len(outcomes), "forced": force,
+			"ranking_mode": rankingMode,
 		})
 		return q.CreateAuditEntry(ctx, db.CreateAuditEntryParams{
 			ActorID: &userID, EventID: &eventID, Action: "judging.publish", Metadata: meta,
@@ -842,22 +863,7 @@ func rankEntries(model *crowdbt.Result, subs []Submission, outcomes []db.ListPai
 	for _, sub := range subs {
 		byID[sub.ID] = sub
 	}
-	coverage := map[uuid.UUID]int{}
-	wins := map[uuid.UUID]int{}
-	losses := map[uuid.UUID]int{}
-	for _, o := range outcomes {
-		if o.WinnerSubmissionID == nil {
-			continue
-		}
-		coverage[o.SubmissionA]++
-		coverage[o.SubmissionB]++
-		wins[*o.WinnerSubmissionID]++
-		loser := o.SubmissionA
-		if *o.WinnerSubmissionID == o.SubmissionA {
-			loser = o.SubmissionB
-		}
-		losses[loser]++
-	}
+	tally := tallyOutcomes(outcomes)
 	entries := make([]RankingEntry, 0, len(subs))
 	seen := map[uuid.UUID]bool{}
 	for _, it := range model.Items {
@@ -870,7 +876,7 @@ func rankEntries(model *crowdbt.Result, subs []Submission, outcomes []db.ListPai
 			SubmissionID: it.ID, Title: sub.Title, TeamName: sub.TeamName,
 			CreatorUsername: sub.CreatorUsername, Score: it.Mu, Variance: it.Variance,
 			Confidence: it.Confidence, Rank: int32(it.Rank),
-			Coverage: coverage[it.ID], Wins: wins[it.ID], Losses: losses[it.ID],
+			Coverage: tally.coverage[it.ID], Wins: tally.wins[it.ID], Losses: tally.losses[it.ID],
 		})
 	}
 	// Unjudged submissions still appear, below everything that was compared.
@@ -887,10 +893,46 @@ func rankEntries(model *crowdbt.Result, subs []Submission, outcomes []db.ListPai
 			CreatorUsername: sub.CreatorUsername, Rank: int32(len(entries) + 1),
 		})
 	}
-	minCov, maxCov := 0, 0
-	if len(subs) > 0 {
-		minCov = 1 << 30
+	minCov, maxCov := coverageRange(subs, tally.coverage)
+	return entries, minCov, maxCov
+}
+
+// outcomeTally is the shared head-to-head count used by both ranking modes.
+// Skipped outcomes carry no winner and therefore contribute no coverage.
+type outcomeTally struct {
+	coverage map[uuid.UUID]int
+	wins     map[uuid.UUID]int
+	losses   map[uuid.UUID]int
+}
+
+func tallyOutcomes(outcomes []db.ListPairOutcomesRow) outcomeTally {
+	tally := outcomeTally{
+		coverage: map[uuid.UUID]int{},
+		wins:     map[uuid.UUID]int{},
+		losses:   map[uuid.UUID]int{},
 	}
+	for _, o := range outcomes {
+		if o.WinnerSubmissionID == nil {
+			continue
+		}
+		tally.coverage[o.SubmissionA]++
+		tally.coverage[o.SubmissionB]++
+		tally.wins[*o.WinnerSubmissionID]++
+		loser := o.SubmissionA
+		if *o.WinnerSubmissionID == o.SubmissionA {
+			loser = o.SubmissionB
+		}
+		tally.losses[loser]++
+	}
+	return tally
+}
+
+func coverageRange(subs []Submission, coverage map[uuid.UUID]int) (int, int) {
+	if len(subs) == 0 {
+		return 0, 0
+	}
+	minCov := 1 << 30
+	maxCov := 0
 	for _, sub := range subs {
 		c := coverage[sub.ID]
 		if c < minCov {
@@ -900,10 +942,89 @@ func rankEntries(model *crowdbt.Result, subs []Submission, outcomes []db.ListPai
 			maxCov = c
 		}
 	}
-	if len(subs) == 0 {
-		minCov = 0
+	return minCov, maxCov
+}
+
+// simpleRanking reports whether the event has exactly one accepted judge and
+// every recorded outcome belongs to that judge. A single judge cannot be
+// cross-checked, so the CrowdBT model adds no value. Outcomes from a judge who
+// was later removed still make the mode unsafe, so they force CrowdBT.
+func simpleRanking(progress []db.ListJudgeProgressRow, outcomes []db.ListPairOutcomesRow) bool {
+	if len(progress) != 1 || progress[0].UserID == nil {
+		return false
 	}
+	judgeID := *progress[0].UserID
+	for _, o := range outcomes {
+		if o.JudgeID != judgeID {
+			return false
+		}
+	}
+	return true
+}
+
+// rankByWins is the single-judge ranking: the entry with the most head-to-head
+// wins ranks first, with losses, coverage and ID as deterministic tie-breakers.
+// Wins-first is intentional: single-judge events are normally balanced by the
+// assignment planner, and the host can force-publish with pending pairs.
+func rankByWins(subs []Submission, outcomes []db.ListPairOutcomesRow) ([]RankingEntry, int, int) {
+	tally := tallyOutcomes(outcomes)
+	judged := make([]Submission, 0, len(subs))
+	unjudged := make([]Submission, 0)
+	for _, sub := range subs {
+		if tally.coverage[sub.ID] > 0 {
+			judged = append(judged, sub)
+		} else {
+			unjudged = append(unjudged, sub)
+		}
+	}
+	sort.SliceStable(judged, func(i, j int) bool {
+		a, b := judged[i], judged[j]
+		if tally.wins[a.ID] != tally.wins[b.ID] {
+			return tally.wins[a.ID] > tally.wins[b.ID]
+		}
+		if tally.losses[a.ID] != tally.losses[b.ID] {
+			return tally.losses[a.ID] < tally.losses[b.ID]
+		}
+		if tally.coverage[a.ID] != tally.coverage[b.ID] {
+			return tally.coverage[a.ID] > tally.coverage[b.ID]
+		}
+		return a.ID.String() < b.ID.String()
+	})
+	sort.SliceStable(unjudged, func(i, j int) bool {
+		return unjudged[i].ID.String() < unjudged[j].ID.String()
+	})
+	entries := make([]RankingEntry, 0, len(subs))
+	for _, sub := range append(judged, unjudged...) {
+		games := tally.wins[sub.ID] + tally.losses[sub.ID]
+		winRate := 0.0
+		if games > 0 {
+			winRate = float64(tally.wins[sub.ID]) / float64(games)
+		}
+		entries = append(entries, RankingEntry{
+			SubmissionID: sub.ID, Title: sub.Title, TeamName: sub.TeamName,
+			CreatorUsername: sub.CreatorUsername, Score: float64(tally.wins[sub.ID]),
+			Confidence: winRate, Rank: int32(len(entries) + 1),
+			Coverage: tally.coverage[sub.ID], Wins: tally.wins[sub.ID], Losses: tally.losses[sub.ID],
+		})
+	}
+	minCov, maxCov := coverageRange(subs, tally.coverage)
 	return entries, minCov, maxCov
+}
+
+// progressOnly keeps the assignment counters for single-judge events without
+// pretending a CrowdBT reliability was computed.
+func progressOnly(progress []db.ListJudgeProgressRow) []JudgeReliability {
+	out := make([]JudgeReliability, 0, len(progress))
+	for _, row := range progress {
+		if row.UserID == nil {
+			continue
+		}
+		out = append(out, JudgeReliability{
+			ID: *row.UserID, Username: deref(row.Username), Email: row.Email,
+			Reliability: 1, Comparisons: int(row.Done), Total: row.Total, Done: row.Done,
+		})
+	}
+	return out
 }
 
 func reliability(model *crowdbt.Result, progress []db.ListJudgeProgressRow) []JudgeReliability {
@@ -1020,14 +1141,18 @@ func reviewWarnings(r *Review, subs []Submission, judgeCount int) []string {
 			"Each entry is compared about %d times. With %d entries, add judges so the top of the ranking is more reliable.",
 			r.CoverageMax, len(subs)))
 	}
-	low := []string{}
-	for _, j := range r.Judges {
-		if j.Comparisons >= 5 && j.Reliability < 0.6 {
-			low = append(low, usernameOrEmail(j))
+	if r.RankingMode == "wins" {
+		warnings = append(warnings, "Single judge: entries are ranked by head-to-head wins, so CrowdBT reliability is not used.")
+	} else {
+		low := []string{}
+		for _, j := range r.Judges {
+			if j.Comparisons >= 5 && j.Reliability < 0.6 {
+				low = append(low, usernameOrEmail(j))
+			}
 		}
-	}
-	if len(low) > 0 {
-		warnings = append(warnings, "Low reliability: "+strings.Join(low, ", ")+".")
+		if len(low) > 0 {
+			warnings = append(warnings, "Low reliability: "+strings.Join(low, ", ")+".")
+		}
 	}
 	if judgeCount == 0 {
 		warnings = append(warnings, "No accepted judges are recorded for this event.")

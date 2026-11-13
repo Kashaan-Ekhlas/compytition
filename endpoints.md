@@ -127,8 +127,8 @@ Status legend: ✅ implemented
 | ✅ | POST | `/judge/events/{id}/comparisons/{pairId}` | judge | `{ winner: "a"\|"b" }` or `{ skipped: true }` or `{ conflict: true }` |
 | ✅ | POST | `/judge/events/{id}/comparisons/{pairId}/undo` | judge | clears current judgment and returns pair to pending; undoing a conflict restores skipped pairs |
 | ✅ | GET | `/judge/events/{id}/progress` | judge | `{ total, done, last_pair_id }` |
-| ✅ | GET | `/events/{id}/judging/review` | organizer/staff | ranking, reliability (including zero-judgment judges), split decisions grouped by submission pair, warnings, confidence |
-| ✅ | POST | `/events/{id}/judging/publish` | organizer/staff | `{ force? }`; writes results, snapshots reliability, locks judging, audits |
+| ✅ | GET | `/events/{id}/judging/review` | organizer/staff | ranking, coverage, wins/losses, `ranking_mode` (`wins`/`crowdbt`), reliability (multi-judge only), split decisions, warnings, confidence (win rate in wins mode) |
+| ✅ | POST | `/events/{id}/judging/publish` | organizer/staff | `{ force? }`; writes results, snapshots reliability for CrowdBT, locks judging, audits; single-judge publish records `ranking_mode: "wins"` |
 | ✅ | GET | `/events/{id}/results` | public / organizer | published ranking; organizer can preview before publication |
 
 ## Chat
@@ -152,6 +152,16 @@ Status legend: ✅ implemented
 | ✅ | POST | `/events/{id}/bookmark` | user | save published/closed event; drafts return 404 |
 | ✅ | DELETE | `/events/{id}/bookmark` | user | remove bookmark |
 
+## Admin
+
+| Status | Method | Path | Auth | Notes |
+|---|---|---|---|---|
+| ✅ | GET | `/admin/overview` | admin | totals plus seed-event and seed-account counts, `seed_enabled` (false in production), and the seeded event list |
+| ✅ | POST | `/admin/seed` | admin, non-production only | `{ events?: 1-10, reset?: boolean }`; `reset` defaults to false; generates varied events, accounts, submissions, judging states and published results |
+| ✅ | POST | `/admin/reset` | admin, non-production only | deletes this admin's seed events (slug prefix `seed-`) and only seed accounts no remaining event references |
+
+The seed and reset routes are not registered when `APP_ENV=production`. The demo seed binary also refuses production.
+
 ## Not implemented (P1)
 
 These are intentionally deferred and have no routes yet: event duplication, CSV result export, email deadline reminders, and emailed staff invites (invite links are displayed in the organizer UI instead).
@@ -174,6 +184,7 @@ These are intentionally deferred and have no routes yet: event duplication, CSV 
 | ✅ | `/host` | organizer home grouped by draft / running / finished |
 | ✅ | `/host/events/new` | event creation with optional banner upload |
 | ✅ | `/host/events/[id]` | manage tabs: overview, form, participants, submissions, judges, judging |
+| ✅ | `/admin` | admin-only test-data console: overview, seed controls, reset and seeded event list |
 | ✅ | `/judge` | judge queue with progress bars |
 | ✅ | `/judge/events/[id]` | pairwise comparison screen with custom answers, attachment preview dialog, keyboard 1/2, skip, conflict, undo |
 | ✅ | `/invites/staff/[token]` | staff invite acceptance; existing accounts accept now, new accounts return after signup |

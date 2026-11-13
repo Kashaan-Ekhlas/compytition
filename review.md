@@ -449,3 +449,15 @@ All 18 findings are implemented. PPT and PPTX attachments are now download-only,
 | 18 | Fixed | `uploads.IDFromPath`, `PathFor` and `PreviewPath` are exported and reused by the events, submissions and uploads services. |
 
 Verification: `gofmt`, `go vet ./...`, `go test ./...`, `npx tsc --noEmit`, `npm test -- --run` and `npm run build` pass. Browser checks confirmed the PDF preview dialog, the blocked `1`/`2` shortcuts while it is open, focus restoration on Escape, and the download-only PPT rendering.
+
+## CodeRabbit review pass (2026-11-14)
+
+CodeRabbit reviewed the single-judge ranking and admin seed console. It raised three findings; all were fixed.
+
+| # | Severity | Finding | Resolution |
+|---|---|---|---|
+| 1 | Minor | `randomHex(3)` gave only 4,096 slug suffixes, so an additive seed run could collide and fail. | Seed runs now use a 12-character hex suffix (48 bits). Additive runs were exercised repeatedly without a collision. |
+| 2 | Major | Reset deleted the shared seed participant and judge accounts even when another admin's events still referenced them, cascading that admin's submissions and judgments. | `DeleteSeedUsers` now removes a seed account only when no remaining event references it through staff, registrations, team membership, submissions or team ownership. Verified with two admins: resetting the first deleted its 10 events but kept the shared accounts, and the second admin's 10 events and data survived. |
+| 3 | Minor | Production registers `/admin/overview` but not seed/reset, so the page offered actions that always failed. | The overview now returns `seed_enabled`. The page disables the seed/reset controls and shows a read-only production notice when it is false. The service also rejects mutations when `APP_ENV=production`. |
+
+Verification: `sqlc generate`, `gofmt`, `go vet ./...`, `go test ./...`, `npx tsc --noEmit`, `npm test -- --run` and `npm run build` pass. The rebuilt Compose stack returned `ranking_mode: wins` for the single-judge Bengaluru event and `ranking_mode: crowdbt` for the multi-judge Austin event. Admin overview, seed, reset, shared-account retention and reseeding were exercised through the API.

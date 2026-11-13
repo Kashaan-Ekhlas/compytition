@@ -2,7 +2,7 @@
 
 ## Overview
 
-**Compytition** is an event hosting and pairwise-judging platform. Organizers create events, participants register solo or in teams, judges compare submissions two at a time, and CrowdBT aggregates those comparisons into a ranking that organizers review and publish. No numeric scores, no weighted rubrics.
+**Compytition** is an event hosting and pairwise-judging platform. Organizers create events, participants register solo or in teams, judges compare submissions two at a time, and CrowdBT aggregates those comparisons into a ranking that organizers review and publish. Events with one accepted judge skip CrowdBT and rank by head-to-head wins. No numeric scores, no weighted rubrics.
 
 Current state (checkpoint): **feature-complete end to end**. The Go API, PostgreSQL schema/migrations, SQLC queries, pairwise assignment, CrowdBT ranking, judge flow, review/publish, chat, bookmarks, notifications and feedback are implemented. The Next.js app covers public discovery, registration, teams, submissions, the organizer console, the judge comparison screen and settings. Docker Compose, Make targets, seeds, CI and tests are in place. `context.md` and `endpoints.md` are kept current at every meaningful unit of work.
 
@@ -20,6 +20,7 @@ compytition/
     db/queries/      SQLC query sources
     db/embed.go      embeds migrations for the API/migrate binaries
     internal/
+      admin/         admin overview and development-only seed/reset console
       apperr/        domain errors
       auth/          bcrypt, sessions, onboarding, Google OIDC
       chat/          persisted team chat + websocket hub
@@ -76,6 +77,9 @@ Data flow: browser → Next.js `app/api` rewrite proxy → Go API `/api/v1/*` �
 - **2026-10-29** - Judging configuration is derived from submission and judge counts; the manual numeric form is gone. Assignment and the derived preview are blocked until the submission deadline has passed.
 - **2026-10-29** - Staff invites accept an email or username. Existing accounts are added as `accepted` immediately; unknown emails receive `/invites/staff/{token}` and auto-accept after signup. Team invite links use `/invites/team/{token}` with the same existing-account/new-account behaviour.
 - **2026-10-29** - Notifications refresh with 5-second polling plus focus/visibility refresh rather than a websocket. The header trigger is a bell with an unread count.
+- **2026-11-14** - When an event has exactly one accepted judge and every outcome belongs to that judge, review and publish skip CrowdBT and rank by wins, then losses, coverage and submission ID. Outcomes from removed judges force CrowdBT. Wins mode reports `ranking_mode: "wins"`, sets `score` to the win count and `confidence` to the win rate, and skips reliability snapshots and split-decision checks. Multi-judge events keep using CrowdBT.
+- **2026-11-14** - The admin console provides an overview plus development-only seed/reset actions. Seeding reuses the judging service to generate varied events, accounts, submissions and judging states. `POST /admin/seed` and `POST /admin/reset` are not registered when `APP_ENV=production`, the service rejects them defensively, and `cmd/seed` refuses to run in production. The overview exposes `seed_enabled` so the UI disables the controls instead of offering actions that cannot succeed. Reset removes only the calling admin's seed events and deletes a seed account only when no remaining event references it, so two admins sharing the seed participant and judge pools cannot delete each other's judging data. Seed promotion of an existing admin account requires the seed password to verify, preventing an account that merely registered the admin email from gaining privileges.
+- **2026-11-14** - The success colour is violet (`#7c3aed`) instead of green. White text on the previous green badge failed contrast against the dark palette.
 
 ## Data Model Notes
 
@@ -116,7 +120,8 @@ Implemented in `internal/judging`:
 - **Assignment** (`assignment/`): target comparisons per submission `k` (default 6), judge budget (default 20), shared anchors (default 3). The planner guarantees a connected comparison graph, coverage ≥ `k` where the budget allows, per-judge overlap via anchors, balanced left/right ordering, conflict exclusion, and a single-judge fallback. Seed is the event ID, so plans are deterministic. Assignment is only allowed while `judging_status='setup'`.
 - **CrowdBT** (`crowdbt/`): latent Gaussian score per submission (mean, variance) and Beta reliability per judge. Online updates plus a deterministic full recompute from the judgment log. Hyperparameters: prior mean 0, prior variance 1, `BetaSq=0.25`, `Beta(3,1)`, minimum variance 0.05. Unreliable judges are down-weighted. A simulation test checks ranking quality.
 - **Judge flow**: only accepted judges may judge; `next` returns the next pending pair with randomized left/right order, criteria and progress. Winners are sent as `"a"`/`"b"` relative to the canonical `submission_a`/`submission_b`, never the displayed side. Skip marks only that pair; conflict skips that pair and every remaining pair involving either submission for that judge. Undo clears the current judgment and returns the pair to pending; `last_pair_id` in progress keeps the action available after a reload.
-- **Review/publish**: exposes ranking, coverage, wins/losses, confidence, per-judge reliability, split decisions and warnings. Publishing requires `judging_status=live`, at least one outcome and either all pairs done or `force:true`. It writes `event_results`, snapshots reliability, sets `judging_status='published'` and the event to `results_published`, then audits the action. Results are public only after publication; organizers can preview beforehand.
+- **Review/publish**: exposes ranking, coverage, wins/losses, confidence, per-judge reliability, split decisions, warnings and `ranking_mode`. Publishing requires `judging_status=live`, at least one outcome and either all pairs done or `force:true`. It writes `event_results`, snapshots reliability, sets `judging_status='published'` and the event to `results_published`, then audits the action. Results are public only after publication; organizers can preview beforehand.
+- **Single-judge mode**: detected when exactly one accepted judge remains and every recorded outcome belongs to that judge. The review ranks by wins, then fewer losses, then coverage, then submission ID, with unjudged entries last. The host UI labels the score column as wins and confidence as win rate, and hides reliability and split-decision panels. Publish audits `ranking_mode: "wins"` and skips CrowdBT reliability snapshots.
 
 ## Phase Progress
 
@@ -183,7 +188,7 @@ npm run lint
 npm test -- --run
 ```
 
-Demo accounts: `host@compytition.local` (organizer), `ava@`, `milo@`, `rin@compytition.local` (judges) and `alice@`…`frank@compytition.local` (participants). Password is `demo1234` for all.
+Demo accounts: `host@compytition.local` (organizer), `ava@`, `milo@`, `rin@compytition.local` (judges) and `alice@`…`frank@compytition.local` (participants). Password is `demo1234` for all. `cmd/seed` also ensures `admin@compytition.local` (username `admin_user`) exists and is an admin; the admin console lives at `/admin`. The seed console creates `seed.user01`…`seed.user16` and `seed.judge1`…`seed.judge4` accounts, all with password `demo1234`.
 
 ## Env Vars
 
@@ -225,6 +230,7 @@ Demo accounts: `host@compytition.local` (organizer), `ava@`, `milo@`, `rin@compy
 - Next bakes `API_INTERNAL_URL` into the standalone web build; changing the internal API address requires rebuilding the web image, not just changing the runtime env.
 - Test coverage is concentrated in assignment, CrowdBT and middleware. Domain services and HTTP handlers have no integration tests yet.
 - Replacing an avatar, banner or attachment leaves the previous disk file and `uploads` row behind; a periodic orphan sweep is still needed.
+- The admin seed/reset console and demo seed binary are development-only. Both refuse production, and the seed accounts share a public password, so they must never be enabled in a deployed environment.
 
 ## Open Questions
 
@@ -235,6 +241,8 @@ Demo accounts: `host@compytition.local` (organizer), `ava@`, `milo@`, `rin@compy
 ## Changelog
 
 Newest first.
+
+- **2026-11-14** - Single-judge ranking and admin test-data console. Events with one accepted judge now rank by head-to-head wins instead of running CrowdBT, with the review and publish payloads reporting `ranking_mode` and the host UI switching its labels and hiding reliability panels. Added `internal/admin` plus `/admin` so an admin can seed up to ten varied events, reusable participants and judges, submissions, judging states and published results, then reset the seed set. Seed and reset routes are absent in production, and the seed binary only promotes an existing admin when the seed password verifies. Success UI switched from green to violet for contrast.
 
 - **2026-11-06** - Upload hardening and bcrypt: the 18 CodeRabbit findings are implemented. Team members can open attachments they did not upload, the judge shortcuts are blocked while a preview is open, attachments use `no-store`, avatars and replaced banners delete their files, uploads have a per-user quota and a dedicated limiter, WebP is decoded, upload paths are absolute, and URL helpers are shared. PPT/PPTX files are download-only; LibreOffice conversion was removed, so the API container no longer ships a converter. Passwords now use bcrypt, with legacy argon2id hashes upgraded on login. Added upload authorization, quota, preview and deletion tests plus bcrypt and legacy hash tests.
 

@@ -10,17 +10,20 @@ import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
 const nav = [
-  { href: "/events", label: "Events", authOnly: false },
-  { href: "/dashboard", label: "Dashboard", authOnly: true },
-  { href: "/host", label: "Host", authOnly: true },
-  { href: "/judge", label: "Judge", authOnly: true },
+  { href: "/events", label: "Events", authOnly: false, adminOnly: false },
+  { href: "/dashboard", label: "Dashboard", authOnly: true, adminOnly: false },
+  { href: "/host", label: "Host", authOnly: true, adminOnly: false },
+  { href: "/judge", label: "Judge", authOnly: true, adminOnly: false },
+  { href: "/admin", label: "Admin", authOnly: true, adminOnly: true },
 ];
 
 export function SiteHeader() {
   const { user, profile, loading, logout } = useAuth();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
-  const visibleNav = nav.filter((item) => !item.authOnly || user);
+  const visibleNav = nav.filter(
+    (item) => (!item.authOnly || user) && (!item.adminOnly || user?.is_admin),
+  );
 
   return (
     <header className="sticky top-0 z-40 border-b-2 border-ink bg-bg/95 backdrop-blur-[2px]">

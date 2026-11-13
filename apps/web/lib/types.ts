@@ -312,6 +312,7 @@ export interface Disagreement {
 
 export interface JudgingReview {
   judging_status: string;
+  ranking_mode: "crowdbt" | "wins";
   total_pairs: number;
   done_pairs: number;
   pending_pairs: number;
@@ -387,4 +388,54 @@ export interface StaffMember {
   accept_url?: string;
   username?: string | null;
   created_at: string;
+}
+
+export interface AdminStats {
+  users: number;
+  events: number;
+  submissions: number;
+  judgments: number;
+  uploads: number;
+}
+
+export interface AdminSeededEvent {
+  id: string;
+  slug: string;
+  title: string;
+  category: string;
+  participation_format: "individual" | "team" | "both";
+  status: EventStatus;
+  is_remote: boolean;
+  country: string;
+  state: string;
+  city: string;
+  registration_opens_at: string | null;
+  registration_closes_at: string | null;
+  starts_at: string | null;
+  ends_at: string | null;
+  submission_deadline: string | null;
+  judging_status: string;
+  results_published_at: string | null;
+  created_at: string;
+}
+
+export interface AdminOverview {
+  stats: AdminStats;
+  seed_events: number;
+  seed_users: number;
+  seed_enabled: boolean;
+  events: AdminSeededEvent[];
+}
+
+export interface AdminSeedResult {
+  events: number;
+  users: number;
+  submissions: number;
+  judgments: number;
+  items: AdminSeededEvent[];
+}
+
+export interface AdminResetResult {
+  events_deleted: number;
+  users_deleted: number;
 }

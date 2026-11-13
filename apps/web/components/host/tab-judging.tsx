@@ -150,6 +150,7 @@ export function TabJudging({
   for (const entry of review?.rankings ?? []) {
     titleById.set(entry.submission_id, entry.title);
   }
+  const winsMode = review?.ranking_mode === "wins";
 
   return (
     <div className="space-y-6">
@@ -157,7 +158,9 @@ export function TabJudging({
         <div>
           <h2 className="font-pixel text-2xl">JUDGING</h2>
           <p className="mt-1 max-w-reading text-base text-muted">
-            Preview the assignment, start judging, then review reliability before publishing.
+            {review?.ranking_mode === "wins"
+              ? "Preview the assignment, start judging, then publish the win-based ranking."
+              : "Preview the assignment, start judging, then review reliability before publishing."}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -322,6 +325,14 @@ export function TabJudging({
       {review && review.judging_status !== "setup" ? (
         <>
           <WindowCard title="RANKING PREVIEW">
+            {review.ranking_mode === "wins" ? (
+              <div className="p-5 pb-0">
+                <Alert tone="info" title="Single judge">
+                  With one accepted judge, entries are ranked by head-to-head wins. CrowdBT
+                  reliability is not calculated.
+                </Alert>
+              </div>
+            ) : null}
             <div className="overflow-x-auto">
               <table className="w-full min-w-[760px] text-left">
                 <thead className="border-b-2 border-ink bg-accent-3 font-pixel text-sm">
@@ -330,8 +341,8 @@ export function TabJudging({
                     <th className="px-3 py-2">Entry</th>
                     <th className="px-3 py-2">Coverage</th>
                     <th className="px-3 py-2">W / L</th>
-                    <th className="px-3 py-2">Score</th>
-                    <th className="px-3 py-2">Confidence</th>
+                    <th className="px-3 py-2">{winsMode ? "Wins" : "Score"}</th>
+                    <th className="px-3 py-2">{winsMode ? "Win rate" : "Confidence"}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -348,7 +359,9 @@ export function TabJudging({
                       <td className="px-3 py-2 font-mono">
                         {entry.wins} / {entry.losses}
                       </td>
-                      <td className="px-3 py-2 font-mono">{entry.score.toFixed(3)}</td>
+                      <td className="px-3 py-2 font-mono">
+                        {winsMode ? entry.score.toFixed(0) : entry.score.toFixed(3)}
+                      </td>
                       <td className="px-3 py-2 font-mono">
                         {Math.round(entry.confidence * 100)}%
                       </td>
@@ -359,6 +372,12 @@ export function TabJudging({
             </div>
           </WindowCard>
 
+          {review.ranking_mode === "wins" ? (
+            <Alert tone="info">
+              This event uses a single judge, so the ranking counts wins directly and skips
+              reliability, overlap and split-decision checks.
+            </Alert>
+          ) : (
           <div className="grid gap-6 lg:grid-cols-2">
             <WindowCard title="JUDGE RELIABILITY">
               {review.judges.length === 0 ? (
@@ -415,6 +434,7 @@ export function TabJudging({
               )}
             </WindowCard>
           </div>
+          )}
 
           <WindowCard title="PUBLISH">
             <div className="space-y-4 p-5">

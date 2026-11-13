@@ -76,6 +76,7 @@ func NewRouter(api *API) http.Handler {
 	registerDashboardRoutes(mux, api)
 	registerChatRoutes(mux, api)
 	registerSupportRoutes(mux, api)
+	registerAdminRoutes(mux, api)
 
 	return Chain(mux,
 		RequestID,

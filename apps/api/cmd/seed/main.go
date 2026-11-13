@@ -6,12 +6,15 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"compytition/internal/auth"
 	"compytition/internal/config"
@@ -51,6 +54,10 @@ var judges = []person{
 }
 
 func main() {
+	if strings.EqualFold(os.Getenv("APP_ENV"), "production") {
+		slog.Error("refusing to run the demo seed with APP_ENV=production")
+		os.Exit(1)
+	}
 	url := os.Getenv("DATABASE_URL")
 	if url == "" {
 		slog.Error("DATABASE_URL is required")
@@ -66,15 +73,25 @@ func main() {
 	}
 	defer store.Close()
 
-	if _, err := store.GetEventBySlug(ctx, slug); err == nil {
-		slog.Info("seed already applied", "slug", slug)
-		return
-	}
-
 	hash, err := auth.HashPassword(password)
 	if err != nil {
 		slog.Error("hash password", "error", err)
 		os.Exit(1)
+	}
+
+	admin := ensureUser(ctx, store, hash, person{
+		Email: "admin@compytition.local", Username: "admin_user",
+		Name: "Admin User", College: "Compytition", Course: "Operations",
+	})
+	if err := store.MakeUserAdmin(ctx, admin.ID); err != nil {
+		slog.Error("make user admin", "error", err)
+		os.Exit(1)
+	}
+
+	if _, err := store.GetEventBySlug(ctx, slug); err == nil {
+		slog.Info("seed already applied", "slug", slug)
+		fmt.Printf("seed ready\n  admin:     admin@compytition.local / %s\n", password)
+		return
 	}
 
 	organizer := mustUser(ctx, store, hash, person{
@@ -199,7 +216,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("seed ready\n  organizer: host@compytition.local / %s\n  judges:    judge_ava, judge_milo, judge_rin / %s\n  event:     /events/%s\n", password, password, ev.ID)
+	fmt.Printf("seed ready\n  admin:     admin@compytition.local / %s\n  organizer: host@compytition.local / %s\n  judges:    judge_ava, judge_milo, judge_rin / %s\n  event:     /events/%s\n", password, password, password, ev.ID)
 }
 
 func mustUser(ctx context.Context, store *db.Store, hash string, p person) *db.User {
@@ -208,10 +225,49 @@ func mustUser(ctx context.Context, store *db.Store, hash string, p person) *db.U
 		slog.Error("create user", "email", p.Email, "error", err)
 		os.Exit(1)
 	}
+	finishUser(ctx, store, hash, user, p)
+	return &user
+}
+
+// ensureUser is idempotent so the admin account exists even when the demo
+// event was seeded by an earlier run. It only promotes an existing account when
+// that account can prove ownership with the seed password; otherwise an
+// attacker who registered the admin email first would be granted privileges.
+func ensureUser(ctx context.Context, store *db.Store, hash string, p person) *db.User {
+	user, err := store.GetUserByEmail(ctx, p.Email)
+	if err == nil {
+		identity, idErr := store.GetIdentity(ctx, db.GetIdentityParams{Provider: "password", ProviderUserID: p.Email})
+		switch {
+		case errors.Is(idErr, pgx.ErrNoRows):
+			slog.Error("refusing to promote an existing account without a seed password", "email", p.Email)
+			os.Exit(1)
+		case idErr != nil:
+			slog.Error("look up identity", "email", p.Email, "error", idErr)
+			os.Exit(1)
+		case identity.SecretHash == nil:
+			slog.Error("refusing to promote an existing account without a password", "email", p.Email)
+			os.Exit(1)
+		default:
+			ok, verifyErr := auth.VerifyPassword(password, *identity.SecretHash)
+			if verifyErr != nil || !ok {
+				slog.Error("refusing to promote an existing account whose password is not the seed password", "email", p.Email)
+				os.Exit(1)
+			}
+		}
+		return &user
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		slog.Error("look up user", "email", p.Email, "error", err)
+		os.Exit(1)
+	}
+	return mustUser(ctx, store, hash, p)
+}
+
+func finishUser(ctx context.Context, store *db.Store, hash string, user db.User, p person) {
 	if err := store.CreateIdentity(ctx, db.CreateIdentityParams{
 		UserID: user.ID, Provider: "password", ProviderUserID: p.Email, SecretHash: &hash,
 	}); err != nil {
-		slog.Error("create identity", "error", err)
+		slog.Error("create identity", "email", p.Email, "error", err)
 		os.Exit(1)
 	}
 	year := int16(3)
@@ -219,17 +275,16 @@ func mustUser(ctx context.Context, store *db.Store, hash string, p person) *db.U
 		UserID: user.ID, FullName: p.Name, College: p.College, Course: p.Course,
 		YearOfStudy: &year,
 	}); err != nil {
-		slog.Error("create profile", "error", err)
+		slog.Error("create profile", "email", p.Email, "error", err)
 		os.Exit(1)
 	}
 	intents, _ := json.Marshal([]string{"find", "host", "judge"})
 	if err := store.UpdateOnboarding(ctx, db.UpdateOnboardingParams{
 		ID: user.ID, OnboardingStep: 6, OnboardingCompleted: true, Intents: intents,
 	}); err != nil {
-		slog.Error("complete onboarding", "error", err)
+		slog.Error("complete onboarding", "email", p.Email, "error", err)
 		os.Exit(1)
 	}
-	return &user
 }
 
 // finalizeDemoJudging runs the real judging pipeline against the seed data so
